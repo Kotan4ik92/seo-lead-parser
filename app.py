@@ -73,20 +73,6 @@ with st.sidebar:
 st.title("🔍 SEO Lead Parser")
 st.markdown("Find websites with poor SEO → turn them into warm leads.")
 
-# Query input
-col1, col2 = st.columns([4, 1])
-with col1:
-    query = st.text_input(
-        "Search query",
-        placeholder='e.g. "online furniture store USA"',
-        label_visibility="collapsed",
-    )
-with col2:
-    run_btn = st.button("🚀 Run", use_container_width=True, type="primary")
-
-# Quick query templates
-st.caption("Quick templates:")
-tmpl_cols = st.columns(6)
 TEMPLATES = [
     "online furniture store USA",
     "restaurant chain Chicago",
@@ -95,9 +81,25 @@ TEMPLATES = [
     "boutique hotel New York",
     "accounting software SMB USA",
 ]
+
+# Quick query templates (set session state before rendering text_input)
+st.caption("Quick templates:")
+tmpl_cols = st.columns(6)
 for i, tmpl in enumerate(TEMPLATES):
     if tmpl_cols[i].button(tmpl, key=f"tmpl_{i}", use_container_width=True):
-        query = tmpl
+        st.session_state["query_input"] = tmpl
+
+# Query input
+col1, col2 = st.columns([4, 1])
+with col1:
+    query = st.text_input(
+        "Search query",
+        placeholder='e.g. "online furniture store USA"',
+        label_visibility="collapsed",
+        key="query_input",
+    )
+with col2:
+    run_btn = st.button("🚀 Run", use_container_width=True, type="primary")
 
 st.divider()
 
