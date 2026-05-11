@@ -1,0 +1,29 @@
+# Secrets
+credentials.json
+*.env
+.env
+.streamlit/secrets.toml
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Output files
+*.xlsx
+*.csv
+leads_*.xlsx
+
+# Debug files
+debug_*.py
+bing_debug.html
+
+# OS
+.DS_Store
+Thumbs.db
