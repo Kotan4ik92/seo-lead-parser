@@ -5,8 +5,10 @@ SEO Lead Parser — Streamlit Web App
 """
 
 import io
+import json
 import time
 import random
+import datetime
 import requests
 
 import streamlit as st
@@ -25,6 +27,50 @@ except Exception:
     pass
 
 from modules.serp_scraper  import scrape_serp
+
+FALLBACK_TEMPLATES = [
+    "online furniture store USA",
+    "restaurant chain Chicago",
+    "CRM software small business",
+    "pet supplies store online UK",
+    "boutique hotel New York",
+    "accounting software SMB USA",
+]
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def get_ai_templates(openai_key: str) -> list[str]:
+    """Генерирует 6 актуальных поисковых запросов через GPT. Кешируется на 24 часа."""
+    if not openai_key:
+        return FALLBACK_TEMPLATES
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=openai_key)
+        today = datetime.date.today().strftime("%B %d, %Y")
+        resp = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[{"role": "user", "content": f"""Today is {today}.
+Suggest 6 Google search queries to find small/medium business websites with potentially poor SEO.
+Target markets: USA, UK, Canada, Australia, EU.
+Niches to cover: ecommerce, HoReCa (hotels/restaurants/cafes), SaaS.
+Make them specific, timely, and varied — consider current season, trends, upcoming holidays.
+Each query should return real business websites (not directories, not big brands).
+
+Return ONLY a JSON array of 6 strings, no markdown:
+["query 1", "query 2", "query 3", "query 4", "query 5", "query 6"]"""}],
+            temperature=0.9,
+            max_tokens=200,
+        )
+        raw = resp.choices[0].message.content.strip()
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        templates = json.loads(raw)
+        if isinstance(templates, list) and len(templates) >= 6:
+            return templates[:6]
+    except Exception:
+        pass
+    return FALLBACK_TEMPLATES
 from modules.seo_scanner   import scan
 from modules.scorer        import score
 from modules.contact_finder import find_contacts
@@ -73,17 +119,14 @@ with st.sidebar:
 st.title("🔍 SEO Lead Parser")
 st.markdown("Find websites with poor SEO → turn them into warm leads.")
 
-TEMPLATES = [
-    "online furniture store USA",
-    "restaurant chain Chicago",
-    "CRM software small business",
-    "pet supplies store online UK",
-    "boutique hotel New York",
-    "accounting software SMB USA",
-]
+# Quick query templates — AI-generated, cached 24h
+tmpl_label_col, tmpl_refresh_col = st.columns([5, 1])
+tmpl_label_col.caption("Quick templates (AI picks trending niches for today):")
+if tmpl_refresh_col.button("🔄", help="Regenerate templates", use_container_width=True):
+    get_ai_templates.clear()
 
-# Quick query templates (set session state before rendering text_input)
-st.caption("Quick templates:")
+TEMPLATES = get_ai_templates(openai_key)
+
 tmpl_cols = st.columns(6)
 for i, tmpl in enumerate(TEMPLATES):
     if tmpl_cols[i].button(tmpl, key=f"tmpl_{i}", use_container_width=True):
