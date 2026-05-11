@@ -40,7 +40,7 @@ Rules:
 - Sign off as SEOBRO team (no individual name needed)
 - Friendly and confident tone — not pushy, not salesy
 - No fake statistics ("97% of businesses...")
-- End with a soft CTA: free SEO audit or a quick 15-min call
+- CTA: offer a free SEO audit with results delivered by email — do NOT suggest calls, meetings, or phone conversations
 - Mention SEOBRO by name naturally once in the body
 
 Return ONLY valid JSON, no markdown:
