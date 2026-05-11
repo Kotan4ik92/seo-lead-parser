@@ -10,10 +10,45 @@ import time
 import random
 import datetime
 import requests
+from pathlib import Path
 
 import streamlit as st
 
 import config
+
+# ── Persistent storage ────────────────────────────────────────────────────────
+DATA_DIR      = Path("data")
+DATA_DIR.mkdir(exist_ok=True)
+STATUSES_FILE = DATA_DIR / "statuses.json"
+HISTORY_FILE  = DATA_DIR / "history.json"
+
+STATUS_OPTIONS = ["🟡 New", "📨 Contacted", "✅ Interested", "❌ Skip"]
+
+def load_statuses() -> dict:
+    try:
+        return json.loads(STATUSES_FILE.read_text(encoding="utf-8")) if STATUSES_FILE.exists() else {}
+    except Exception:
+        return {}
+
+def save_status(url: str, status: str):
+    s = load_statuses()
+    s[url] = status
+    STATUSES_FILE.write_text(json.dumps(s, ensure_ascii=False, indent=2), encoding="utf-8")
+
+def load_history() -> list:
+    try:
+        return json.loads(HISTORY_FILE.read_text(encoding="utf-8")) if HISTORY_FILE.exists() else []
+    except Exception:
+        return []
+
+def append_history(query: str, geo: str, niche: str, total: int, hot: int, fire: int, warm: int):
+    h = load_history()
+    h.insert(0, {
+        "date":  datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "query": query, "geo": geo, "niche": niche,
+        "total": total, "hot": hot, "fire": fire, "warm": warm,
+    })
+    HISTORY_FILE.write_text(json.dumps(h[:100], ensure_ascii=False, indent=2), encoding="utf-8")
 
 # On Streamlit Cloud, secrets are injected via st.secrets
 try:
@@ -311,6 +346,12 @@ if run_btn and query:
     st.session_state["scan_results"] = all_results
     st.session_state["scan_query"]   = query
 
+    # Append to history
+    _hot  = sum(1 for _, s, _ in all_results if s >= 70)
+    _fire = sum(1 for _, s, _ in all_results if 45 <= s < 70)
+    _warm = sum(1 for _, s, _ in all_results if 20 <= s < 45)
+    append_history(query, geo_label, niche, len(all_results), _hot, _fire, _warm)
+
     # Pre-generate Excel bytes once
     safe_q   = query.replace(" ", "_").replace("/", "-")[:40]
     filename = f"leads_{safe_q}.xlsx"
@@ -365,9 +406,21 @@ if "scan_results" in st.session_state:
         if not seo.reachable:
             continue
 
-        header = f"{temp}  |  **{seo.url}**  |  Score: {lead_score}  |  Issues: {seo.issues_count}"
+        statuses     = load_statuses()
+        lead_status  = statuses.get(seo.url, "🟡 New")
+        header = f"{lead_status}  {temp}  |  **{seo.url}**  |  Score: {lead_score}  |  Issues: {seo.issues_count}"
         with st.expander(header, expanded=(idx < 3)):
 
+            # Status selector
+            status_cols = st.columns(len(STATUS_OPTIONS) + 1)
+            status_cols[0].markdown("**Status:**")
+            for si, opt in enumerate(STATUS_OPTIONS):
+                if status_cols[si + 1].button(opt, key=f"st_{idx}_{si}",
+                                               type="primary" if lead_status == opt else "secondary"):
+                    save_status(seo.url, opt)
+                    st.rerun()
+
+            st.divider()
             col_a, col_b = st.columns(2)
 
             with col_a:
@@ -450,9 +503,23 @@ if "scan_results" in st.session_state:
                         if em.get("error"):
                             st.error(em["error"])
                         else:
-                            st.markdown(f"**Subject:** {em['subject']}")
-                            st.text_area("Body", value=em["body"], height=200,
-                                         key=f"email_body_{idx}")
+                            st.markdown(f"**Subject:** `{em['subject']}`")
+                            st.code(em["body"], language=None)
+
+# ── Scan history ─────────────────────────────────────────────────────────────
+history = load_history()
+if history:
+    st.divider()
+    with st.expander(f"📋 Scan history ({len(history)} runs)", expanded=False):
+        for h in history:
+            hot_tag  = f"💥 {h['hot']}" if h['hot']  else ""
+            fire_tag = f"🔥 {h['fire']}" if h['fire'] else ""
+            warm_tag = f"🌤 {h['warm']}" if h['warm'] else ""
+            tags = "  ".join(t for t in [hot_tag, fire_tag, warm_tag] if t)
+            st.markdown(
+                f"`{h['date']}`  **{h['query']}**  ·  {h['geo']}  ·  {h['niche']}  "
+                f"·  {h['total']} sites  ·  {tags}"
+            )
 
 else:
     st.markdown("""
