@@ -96,16 +96,22 @@ def get_ai_templates(openai_key: str, niche: str) -> list[str]:
         today = datetime.date.today().strftime("%B %d, %Y")
         resp = client.chat.completions.create(
             model="gpt-4.1-mini",
-            messages=[{"role": "user", "content": f"""Today is {today}.
-Suggest 6 Google search queries to find small/medium business websites with potentially poor SEO.
-Target markets: USA, UK, Canada, Australia, EU. {niche_hint}
-Make them specific, timely, varied — consider current season, trends, upcoming holidays.
-Each query should return real business websites (not directories, not big brands).
+            messages=[{"role": "user", "content": f"""Today is {today}. {niche_hint}
+
+Generate 6 short Google search queries (3-5 words each) that a person would type to find a specific TYPE of small/medium business.
+Target markets: USA, UK, Canada, Australia, EU.
+Rules:
+- Write like a real person searching for a business, NOT like an SEO audit query
+- No words like "SEO", "ranking", "poor", "weak", "examples", dates or years
+- Good examples: "online pet store UK", "boutique hotel Chicago", "HR software startup"
+- Bad examples: "ecommerce sites spring 2026 UK poor SEO", "SaaS startups with low rankings"
+- Keep each query under 6 words
+- Vary countries and sub-niches
 
 Return ONLY a JSON array of 6 strings, no markdown:
 ["query 1", "query 2", "query 3", "query 4", "query 5", "query 6"]"""}],
-            temperature=0.9,
-            max_tokens=200,
+            temperature=0.8,
+            max_tokens=150,
         )
         raw = resp.choices[0].message.content.strip()
         if raw.startswith("```"):
