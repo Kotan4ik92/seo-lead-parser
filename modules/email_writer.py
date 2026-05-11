@@ -19,7 +19,9 @@ def _get_client() -> OpenAI:
 
 
 PROMPT = """\
-You are a professional SEO agency outreach specialist. Write a short, personalized cold email to the owner of this website, offering SEO services.
+You are writing a cold outreach email on behalf of SEOBRO (seobro.com) — a boutique SEO agency specializing in SaaS, Ecommerce, Hotels, and Real Estate. The agency focuses on real results: qualified pipeline, not vanity metrics.
+
+Write a short, personalized email to the owner of this website offering SEO services.
 
 Website: {url}
 Business niche: {query}
@@ -33,13 +35,13 @@ AI SEO verdict: {verdict}
 
 Rules:
 - Write in English
-- Maximum 120 words total
-- Subject line + email body
-- Be specific — mention 2-3 REAL issues from their site (not generic)
-- Friendly, not pushy or salesy
+- Maximum 120 words total (subject line + body)
+- Be specific — mention 2-3 REAL issues from their site, not generic phrases
+- Sign off as SEOBRO team (no individual name needed)
+- Friendly and confident tone — not pushy, not salesy
 - No fake statistics ("97% of businesses...")
-- End with a soft CTA: offer a free audit or quick call
-- Do NOT mention our company name (leave placeholder [Your Agency])
+- End with a soft CTA: free SEO audit or a quick 15-min call
+- Mention SEOBRO by name naturally once in the body
 
 Return ONLY valid JSON, no markdown:
 {{
