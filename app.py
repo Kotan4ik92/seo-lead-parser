@@ -324,7 +324,8 @@ if run_btn and query:
 
     # Step 1: SERP
     with st.spinner("🌐 Fetching search results…"):
-        urls = scrape_serp(query, max_results=max_results, lang_restrict=lang_restrict)
+        urls = scrape_serp(query, max_results=max_results,
+                           lang_restrict=lang_restrict, niche=niche)
 
     if not urls:
         st.error("No URLs found. Check your Serper.dev API key or try a different query.")
@@ -345,7 +346,7 @@ if run_btn and query:
     all_results = []
     for i, url in enumerate(urls):
         status_text.markdown(f"**[{i+1}/{len(urls)}]** Scanning `{url}` …")
-        seo = scan(url, session, query=query)
+        seo = scan(url, session, query=query, niche=niche)
         lead_score, temp = score(seo)
         all_results.append((seo, lead_score, temp))
         progress_bar.progress((i + 1) / len(urls))
@@ -422,7 +423,8 @@ if "scan_results" in st.session_state:
 
         statuses     = load_statuses()
         lead_status  = statuses.get(seo.url, "🟡 New")
-        header = f"{lead_status}  {temp}  |  **{seo.url}**  |  Score: {lead_score}  |  Issues: {seo.issues_count}"
+        niche_flag   = "" if seo.niche_match else "  ⚠️ Off-niche?"
+        header = f"{lead_status}  {temp}  |  **{seo.url}**  |  Score: {lead_score}  |  Issues: {seo.issues_count}{niche_flag}"
         with st.expander(header, expanded=(idx < 3)):
 
             # Status selector
@@ -433,6 +435,9 @@ if "scan_results" in st.session_state:
                                                type="primary" if lead_status == opt else "secondary"):
                     save_status(seo.url, opt)
                     st.rerun()
+
+            if not seo.niche_match and niche != "All niches":
+                st.warning(f"⚠️ Site may not match **{niche}** niche — verify manually before outreach.", icon="🔍")
 
             st.divider()
             col_a, col_b = st.columns(2)

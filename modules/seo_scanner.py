@@ -58,6 +58,7 @@ class SeoResult:
     # Итог
     issues: list[str] = field(default_factory=list)
     issues_count: int = 0
+    niche_match: bool = True  # False = сайт скорее всего не в нише
 
 
 def _fetch(url: str, session: requests.Session, timeout: int = None):
@@ -86,7 +87,7 @@ def _extract_page_data(url: str, html: str) -> dict:
     }
 
 
-def scan(url: str, session: requests.Session, query: str = "") -> SeoResult:
+def scan(url: str, session: requests.Session, query: str = "", niche: str = "") -> SeoResult:
     result = SeoResult(url=url)
     issues = []
 
@@ -230,6 +231,34 @@ def scan(url: str, session: requests.Session, query: str = "") -> SeoResult:
             robots_snippet=result.robots_snippet,
         )
 
-    result.issues = issues
+    result.issues      = issues
     result.issues_count = len(issues)
+
+    # Niche heuristic check
+    if niche and niche != "All niches":
+        result.niche_match = _check_niche(
+            niche,
+            f"{result.title} {result.h1_text} {result.meta_desc}".lower()
+        )
+
     return result
+
+
+NICHE_KEYWORDS = {
+    "Ecommerce":        ["shop", "store", "buy", "cart", "product", "order", "price", "ecommerce", "checkout"],
+    "HoReCa":          ["restaurant", "hotel", "cafe", "bar", "menu", "dining", "catering", "food", "drink", "book a table"],
+    "SaaS":            ["software", "platform", "app", "dashboard", "trial", "pricing", "saas", "subscription", "api"],
+    "Local Services":  ["service", "contractor", "repair", "plumber", "electrician", "cleaning", "local", "call us"],
+    "Real Estate":     ["property", "real estate", "apartment", "house", "rent", "sale", "listing", "realty", "agent"],
+    "Healthcare":      ["clinic", "medical", "doctor", "health", "patient", "hospital", "therapy", "dental", "pharmacy"],
+    "Beauty & Wellness": ["salon", "spa", "beauty", "wellness", "skincare", "massage", "nail", "hair"],
+    "Travel & Tourism": ["travel", "tour", "vacation", "hotel", "flight", "booking", "resort", "destination"],
+    "Fitness & Sport": ["gym", "fitness", "workout", "sport", "training", "coach", "yoga", "crossfit"],
+    "Education":       ["school", "academy", "course", "learn", "education", "training", "university", "degree", "study"],
+    "Legal & Finance": ["law", "attorney", "legal", "finance", "accounting", "tax", "insurance", "investment", "advisor"],
+}
+
+
+def _check_niche(niche: str, text: str) -> bool:
+    keywords = NICHE_KEYWORDS.get(niche, [])
+    return any(kw in text for kw in keywords)

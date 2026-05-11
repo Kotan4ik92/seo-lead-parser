@@ -67,11 +67,30 @@ def _is_skip(domain: str) -> bool:
     return False
 
 
-def scrape_serp(query: str, max_results: int = 100, lang_restrict: str = "") -> list[str]:
-    urls = _scrape(query, max_results, lang_restrict)
+NICHE_BOOSTERS = {
+    "Ecommerce":        "online store OR shop OR buy OR ecommerce",
+    "HoReCa":          "restaurant OR hotel OR cafe OR catering",
+    "SaaS":            "software OR platform OR app OR saas",
+    "Local Services":  "local service OR company OR contractor",
+    "Real Estate":     "real estate OR property OR realty",
+    "Healthcare":      "clinic OR medical OR health OR doctor",
+    "Beauty & Wellness": "salon OR spa OR beauty OR wellness",
+    "Travel & Tourism": "travel OR tour OR vacation OR resort",
+    "Fitness & Sport": "gym OR fitness OR sport OR training",
+    "Education":       "school OR academy OR course OR training",
+    "Legal & Finance": "law firm OR attorney OR accountant OR finance",
+}
+
+
+def scrape_serp(query: str, max_results: int = 100,
+                lang_restrict: str = "", niche: str = "") -> list[str]:
+    boosted = query
+    if niche and niche != "All niches" and niche in NICHE_BOOSTERS:
+        boosted = f"{query} {NICHE_BOOSTERS[niche]}"
+    urls = _scrape(boosted, max_results, lang_restrict)
     if not urls and lang_restrict:
-        print(f"[SERP] No results with lang filter '{lang_restrict}', retrying without it…")
-        urls = _scrape(query, max_results, "")
+        print(f"[SERP] No results with lang filter, retrying without it…")
+        urls = _scrape(boosted, max_results, "")
     return urls
 
 
