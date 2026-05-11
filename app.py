@@ -135,29 +135,30 @@ FALLBACK_TEMPLATES = [
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
-def get_ai_templates(openai_key: str, niche: str) -> list[str]:
+def get_ai_templates(openai_key: str, niche: str, geo: str, lang: str) -> list[str]:
     """Генерирует 6 актуальных запросов через GPT. Кеш 24ч."""
     if not openai_key:
         return FALLBACK_TEMPLATES
     niche_hint = f"Focus on {niche} niche only." if niche != "All niches" else \
                  "Mix of ecommerce, HoReCa (hotels/restaurants/cafes), and SaaS."
+    geo_hint  = f"Target market: {geo}." if geo else "Target markets: USA, UK, Canada, Australia, EU."
+    lang_hint = f"Queries should be in {lang} language." if lang and lang != "Any" else "Queries in English."
     try:
         from openai import OpenAI
         client = OpenAI(api_key=openai_key)
         today = datetime.date.today().strftime("%B %d, %Y")
         resp = client.chat.completions.create(
             model="gpt-4.1-mini",
-            messages=[{"role": "user", "content": f"""Today is {today}. {niche_hint}
+            messages=[{"role": "user", "content": f"""Today is {today}. {niche_hint} {geo_hint} {lang_hint}
 
 Generate 6 short Google search queries (3-5 words each) that a person would type to find a specific TYPE of small/medium business.
-Target markets: USA, UK, Canada, Australia, EU.
 Rules:
 - Write like a real person searching for a business, NOT like an SEO audit query
 - No words like "SEO", "ranking", "poor", "weak", "examples", dates or years
 - Good examples: "online pet store UK", "boutique hotel Chicago", "HR software startup"
 - Bad examples: "ecommerce sites spring 2026 UK poor SEO", "SaaS startups with low rankings"
 - Keep each query under 6 words
-- Vary countries and sub-niches
+- Match the target market and language specified above
 
 Return ONLY a JSON array of 6 strings, no markdown:
 ["query 1", "query 2", "query 3", "query 4", "query 5", "query 6"]"""}],
@@ -268,7 +269,7 @@ tmpl_label_col.caption("Quick templates (AI picks trending niches for today):")
 if tmpl_refresh_col.button("🔄", help="Regenerate templates", use_container_width=True):
     get_ai_templates.clear()
 
-TEMPLATES = get_ai_templates(config.OPENAI_API_KEY, niche)
+TEMPLATES = get_ai_templates(config.OPENAI_API_KEY, niche, geo_label, lang_label)
 
 tmpl_cols = st.columns(6)
 for i, tmpl in enumerate(TEMPLATES):
