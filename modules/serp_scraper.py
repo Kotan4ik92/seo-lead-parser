@@ -56,7 +56,7 @@ def _base(url: str) -> str:
     return f"{p.scheme}://{p.netloc}" if p.netloc else ""
 
 
-def scrape_serp(query: str, max_results: int = 100) -> list[str]:
+def scrape_serp(query: str, max_results: int = 100, lang_restrict: str = "") -> list[str]:
     if not config.SERPER_API_KEY:
         print("[SERP] ОШИБКА: не задан SERPER_API_KEY в config.py")
         return []
@@ -74,6 +74,8 @@ def scrape_serp(query: str, max_results: int = 100) -> list[str]:
             "num":  10,
             "page": page,
         }
+        if lang_restrict:
+            payload["lr"] = lang_restrict
         headers = {
             "X-API-KEY":    config.SERPER_API_KEY,
             "Content-Type": "application/json",

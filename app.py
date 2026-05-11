@@ -16,7 +16,6 @@ import streamlit as st
 import config
 
 # On Streamlit Cloud, secrets are injected via st.secrets
-# Locally, keys come from config.py or the sidebar
 try:
     import streamlit as _st_pre
     if "SERPER_API_KEY" in _st_pre.secrets:
@@ -26,7 +25,53 @@ try:
 except Exception:
     pass
 
-from modules.serp_scraper  import scrape_serp
+from modules.serp_scraper   import scrape_serp
+from modules.seo_scanner    import scan
+from modules.scorer         import score
+from modules.contact_finder import find_contacts
+from modules.email_writer   import generate_email
+from modules.sheets_writer  import write_to_excel
+
+# ── Constants ─────────────────────────────────────────────────────────────────
+
+GEO_OPTIONS = {
+    "🇺🇸 USA":         "us",
+    "🇬🇧 UK":          "gb",
+    "🇨🇦 Canada":      "ca",
+    "🇦🇺 Australia":   "au",
+    "🇳🇿 New Zealand": "nz",
+    "🇮🇪 Ireland":     "ie",
+    "🇩🇪 Germany":     "de",
+    "🇫🇷 France":      "fr",
+    "🇳🇱 Netherlands": "nl",
+    "🇧🇪 Belgium":     "be",
+    "🇦🇹 Austria":     "at",
+    "🇨🇭 Switzerland": "ch",
+    "🇸🇪 Sweden":      "se",
+    "🇳🇴 Norway":      "no",
+    "🇩🇰 Denmark":     "dk",
+    "🇪🇸 Spain":       "es",
+    "🇮🇹 Italy":       "it",
+    "🇵🇱 Poland":      "pl",
+    "🇰🇿 Kazakhstan":  "kz",
+}
+
+LANG_OPTIONS = {
+    "Any":        "",
+    "English":    "lang_en",
+    "German":     "lang_de",
+    "French":     "lang_fr",
+    "Spanish":    "lang_es",
+    "Italian":    "lang_it",
+    "Dutch":      "lang_nl",
+    "Polish":     "lang_pl",
+    "Swedish":    "lang_sv",
+    "Norwegian":  "lang_no",
+    "Danish":     "lang_da",
+    "Portuguese": "lang_pt",
+}
+
+NICHE_OPTIONS = ["All niches", "Ecommerce", "HoReCa", "SaaS"]
 
 FALLBACK_TEMPLATES = [
     "online furniture store USA",
@@ -37,11 +82,14 @@ FALLBACK_TEMPLATES = [
     "accounting software SMB USA",
 ]
 
+
 @st.cache_data(ttl=86400, show_spinner=False)
-def get_ai_templates(openai_key: str) -> list[str]:
-    """Генерирует 6 актуальных поисковых запросов через GPT. Кешируется на 24 часа."""
+def get_ai_templates(openai_key: str, niche: str) -> list[str]:
+    """Генерирует 6 актуальных запросов через GPT. Кеш 24ч."""
     if not openai_key:
         return FALLBACK_TEMPLATES
+    niche_hint = f"Focus on {niche} niche only." if niche != "All niches" else \
+                 "Mix of ecommerce, HoReCa (hotels/restaurants/cafes), and SaaS."
     try:
         from openai import OpenAI
         client = OpenAI(api_key=openai_key)
@@ -50,9 +98,8 @@ def get_ai_templates(openai_key: str) -> list[str]:
             model="gpt-4.1-mini",
             messages=[{"role": "user", "content": f"""Today is {today}.
 Suggest 6 Google search queries to find small/medium business websites with potentially poor SEO.
-Target markets: USA, UK, Canada, Australia, EU.
-Niches to cover: ecommerce, HoReCa (hotels/restaurants/cafes), SaaS.
-Make them specific, timely, and varied — consider current season, trends, upcoming holidays.
+Target markets: USA, UK, Canada, Australia, EU. {niche_hint}
+Make them specific, timely, varied — consider current season, trends, upcoming holidays.
 Each query should return real business websites (not directories, not big brands).
 
 Return ONLY a JSON array of 6 strings, no markdown:
@@ -71,13 +118,9 @@ Return ONLY a JSON array of 6 strings, no markdown:
     except Exception:
         pass
     return FALLBACK_TEMPLATES
-from modules.seo_scanner   import scan
-from modules.scorer        import score
-from modules.contact_finder import find_contacts
-from modules.email_writer  import generate_email
-from modules.sheets_writer import write_to_excel
 
-# ── Page config ──────────────────────────────────────────────────────────────
+
+# ── Page config ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="SEO Lead Parser",
     page_icon="🔍",
@@ -85,7 +128,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Sidebar — settings ───────────────────────────────────────────────────────
+# ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.title("⚙️ Settings")
 
@@ -93,7 +136,7 @@ with st.sidebar:
         "Serper.dev API Key",
         value=config.SERPER_API_KEY,
         type="password",
-        help="Get free key at serper.dev (2500 free searches)",
+        help="Get free key at serper.dev",
     )
     openai_key = st.text_input(
         "OpenAI API Key",
@@ -104,13 +147,28 @@ with st.sidebar:
 
     st.divider()
     st.caption("**Search settings**")
-    geo = st.selectbox("Market / Geo", ["us", "gb", "ca", "au", "de", "fr"], index=0)
+
+    niche = st.selectbox("Niche", NICHE_OPTIONS, index=0)
+
+    geo_label = st.selectbox("Market / Geo", list(GEO_OPTIONS.keys()), index=0)
+    geo = GEO_OPTIONS[geo_label]
+
+    lang_label = st.selectbox("Site language", list(LANG_OPTIONS.keys()), index=0)
+    lang_restrict = LANG_OPTIONS[lang_label]
+
     max_results = st.slider("Max sites to scan", 5, 100, 30, step=5)
-    max_pages = st.slider("Pages per site (sitemap)", 5, 20, 15, step=5)
+    max_pages   = st.slider("Pages per site (sitemap)", 5, 20, 15, step=5)
 
     st.divider()
-    st.caption("**Lead filter**")
-    min_score = st.slider("Minimum lead score", 0, 100, 0)
+    st.caption("**Lead filters**")
+
+    score_min, score_max = st.slider(
+        "Score range",
+        min_value=0, max_value=100,
+        value=(0, 100), step=5,
+    )
+    min_issues = st.slider("Min technical issues", 0, 10, 0, step=1,
+                           help="Show only sites with at least N technical problems")
 
     st.divider()
     st.markdown("Made with ❤️ for SEO agencies")
@@ -119,13 +177,13 @@ with st.sidebar:
 st.title("🔍 SEO Lead Parser")
 st.markdown("Find websites with poor SEO → turn them into warm leads.")
 
-# Quick query templates — AI-generated, cached 24h
+# AI templates
 tmpl_label_col, tmpl_refresh_col = st.columns([5, 1])
 tmpl_label_col.caption("Quick templates (AI picks trending niches for today):")
 if tmpl_refresh_col.button("🔄", help="Regenerate templates", use_container_width=True):
     get_ai_templates.clear()
 
-TEMPLATES = get_ai_templates(openai_key)
+TEMPLATES = get_ai_templates(openai_key, niche)
 
 tmpl_cols = st.columns(6)
 for i, tmpl in enumerate(TEMPLATES):
@@ -148,18 +206,19 @@ st.divider()
 
 # ── Run pipeline ──────────────────────────────────────────────────────────────
 if run_btn and query:
-    # Patch config with sidebar values
-    config.SERPER_API_KEY  = serper_key
-    config.OPENAI_API_KEY  = openai_key
-    config.SEARCH_GEO      = geo
-    config.MAX_RESULTS     = max_results
+    config.SERPER_API_KEY     = serper_key
+    config.OPENAI_API_KEY     = openai_key
+    config.SEARCH_GEO         = geo
+    config.MAX_RESULTS        = max_results
     config.MAX_PAGES_PER_SITE = max_pages
 
-    st.info(f"Searching Google for: **{query}** | Geo: {geo} | Up to {max_results} sites")
+    niche_tag = f" | Niche: {niche}" if niche != "All niches" else ""
+    lang_tag  = f" | Lang: {lang_label}" if lang_restrict else ""
+    st.info(f"Searching: **{query}** | Geo: {geo_label}{niche_tag}{lang_tag} | Up to {max_results} sites")
 
     # Step 1: SERP
     with st.spinner("🌐 Fetching search results…"):
-        urls = scrape_serp(query, max_results=max_results)
+        urls = scrape_serp(query, max_results=max_results, lang_restrict=lang_restrict)
 
     if not urls:
         st.error("No URLs found. Check your Serper.dev API key or try a different query.")
@@ -189,18 +248,20 @@ if run_btn and query:
     status_text.empty()
     progress_bar.empty()
 
-    # Sort by score descending
+    # Sort and filter
     all_results.sort(key=lambda x: x[1], reverse=True)
-
-    # Filter by min score
-    filtered = [(seo, s, t) for seo, s, t in all_results if s >= min_score]
+    filtered = [
+        (seo, s, t) for seo, s, t in all_results
+        if score_min <= s <= score_max
+        and seo.issues_count >= min_issues
+    ]
 
     # Step 3: Stats
-    hot   = sum(1 for _, s, _ in filtered if s >= 70)
-    fire  = sum(1 for _, s, _ in filtered if 45 <= s < 70)
-    warm  = sum(1 for _, s, _ in filtered if 20 <= s < 45)
-    cold  = sum(1 for _, s, _ in filtered if s < 20)
-    dead  = sum(1 for r, _, _ in filtered if not r.reachable)
+    hot  = sum(1 for _, s, _ in filtered if s >= 70)
+    fire = sum(1 for _, s, _ in filtered if 45 <= s < 70)
+    warm = sum(1 for _, s, _ in filtered if 20 <= s < 45)
+    cold = sum(1 for _, s, _ in filtered if s < 20)
+    dead = sum(1 for r, _, _ in filtered if not r.reachable)
 
     c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("💥 Critical", hot)
@@ -211,8 +272,8 @@ if run_btn and query:
 
     st.divider()
 
-    # Step 4: Save to Excel and offer download
-    safe_q = query.replace(" ", "_").replace("/", "-")[:40]
+    # Step 4: Excel download
+    safe_q   = query.replace(" ", "_").replace("/", "-")[:40]
     filename = f"leads_{safe_q}.xlsx"
     write_to_excel(filtered, query, filename=filename)
     with open(filename, "rb") as f:
@@ -227,18 +288,14 @@ if run_btn and query:
 
     st.divider()
 
-    # Step 5: Results table with expanders
+    # Step 5: Results
     st.subheader(f"Results ({len(filtered)} leads)")
 
     for idx, (seo, lead_score, temp) in enumerate(filtered):
         if not seo.reachable:
             continue
 
-        color = "#d32f2f" if lead_score >= 70 else \
-                "#f57c00" if lead_score >= 45 else \
-                "#1976d2" if lead_score >= 20 else "#555"
-
-        header = f"{temp}  |  **{seo.url}**  |  Score: {lead_score}"
+        header = f"{temp}  |  **{seo.url}**  |  Score: {lead_score}  |  Issues: {seo.issues_count}"
         with st.expander(header, expanded=(idx < 3)):
 
             col_a, col_b = st.columns(2)
@@ -254,13 +311,13 @@ if run_btn and query:
 
                 st.markdown("**Technical**")
                 tech_info = {
-                    "Title":     f"{seo.title[:60]}…" if seo.title else "❌ Missing",
-                    "H1":        f"{seo.h1_text[:60]}…" if seo.h1_text else "❌ Missing",
-                    "Meta desc": f"{seo.meta_desc[:60]}…" if seo.meta_desc else "❌ Missing",
-                    "Sitemap":   "✅" if seo.has_sitemap else "❌",
-                    "Robots":    "✅" if seo.has_robots else "❌",
-                    "Schema":    "✅" if seo.has_schema else "❌",
-                    "HTTPS":     "✅" if seo.https else "❌",
+                    "Title":         f"{seo.title[:60]}…" if seo.title else "❌ Missing",
+                    "H1":            f"{seo.h1_text[:60]}…" if seo.h1_text else "❌ Missing",
+                    "Meta desc":     f"{seo.meta_desc[:60]}…" if seo.meta_desc else "❌ Missing",
+                    "Sitemap":       "✅" if seo.has_sitemap else "❌",
+                    "Robots":        "✅" if seo.has_robots else "❌",
+                    "Schema":        "✅" if seo.has_schema else "❌",
+                    "HTTPS":         "✅" if seo.https else "❌",
                     "Pages scanned": str(seo.pages_scanned),
                 }
                 for k, v in tech_info.items():
@@ -271,7 +328,6 @@ if run_btn and query:
                 contact_key = f"contacts_{idx}"
                 email_key   = f"email_{idx}"
 
-                # Find contacts on demand
                 if contact_key not in st.session_state:
                     if st.button("🔍 Find contacts", key=f"btn_contact_{idx}"):
                         with st.spinner("Searching contact pages…"):
@@ -284,13 +340,10 @@ if run_btn and query:
                         st.markdown("📧 **Emails:** " + ", ".join(contacts["emails"]))
                     else:
                         st.markdown("📧 **Emails:** not found")
-
                     if contacts["phones"]:
                         st.markdown("📞 **Phones:** " + ", ".join(contacts["phones"]))
-
                     if contacts["linkedin"]:
                         st.markdown(f"🔗 **LinkedIn:** [{contacts['linkedin']}]({contacts['linkedin']})")
-
                     if contacts["owner"]:
                         st.markdown(f"👤 **Owner:** {contacts['owner']}")
 
@@ -316,32 +369,27 @@ if run_btn and query:
                             st.error(em["error"])
                         else:
                             st.markdown(f"**Subject:** {em['subject']}")
-                            st.text_area(
-                                "Body",
-                                value=em["body"],
-                                height=200,
-                                key=f"email_body_{idx}",
-                            )
+                            st.text_area("Body", value=em["body"], height=200,
+                                         key=f"email_body_{idx}")
 
 elif run_btn and not query:
     st.warning("Please enter a search query.")
 
 else:
-    # Landing state
     st.markdown("""
     ### How it works
 
-    1. **Enter a search query** — e.g. `"online furniture store USA"`
-    2. **Click Run** — the app searches Google and scans up to 50 websites
-    3. **Review leads** — ranked by SEO problem score (higher = worse SEO = hotter lead)
-    4. **Find contacts** — email, phone, LinkedIn for each site
-    5. **Generate cold email** — AI writes a personalized outreach email
-    6. **Export to Excel** — download color-coded spreadsheet
+    1. **Enter a search query** — or click a quick template above
+    2. **Click Run** — searches Google, scans up to 100 sites for SEO issues
+    3. **Review leads** — ranked by score (higher = worse SEO = hotter lead)
+    4. **Find contacts** — email, phone, LinkedIn per site
+    5. **Generate cold email** — AI writes personalized outreach
+    6. **Export to Excel** — color-coded spreadsheet
 
     ---
     **Lead temperatures:**
-    - 💥 Critical (70+) — site has severe SEO issues, very hot lead
-    - 🔥 Hot (45-70) — significant issues
-    - 🌤 Warm (20-45) — some issues worth mentioning
-    - ❄️ Cold (0-20) — decent SEO, probably not interested
+    - 💥 Critical (70+) — severe SEO issues, very hot lead
+    - 🔥 Hot (45–70) — significant issues
+    - 🌤 Warm (20–45) — some issues worth mentioning
+    - ❄️ Cold (0–20) — decent SEO, probably not interested
     """)
