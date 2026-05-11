@@ -212,6 +212,10 @@ st.divider()
 
 # ── Run pipeline ──────────────────────────────────────────────────────────────
 if run_btn and query:
+    # Clear previous results when starting a new scan
+    for key in ["scan_results", "scan_query", "scan_excel"]:
+        st.session_state.pop(key, None)
+
     config.SERPER_API_KEY     = serper_key
     config.OPENAI_API_KEY     = openai_key
     config.SEARCH_GEO         = geo
@@ -254,15 +258,34 @@ if run_btn and query:
     status_text.empty()
     progress_bar.empty()
 
-    # Sort and filter
     all_results.sort(key=lambda x: x[1], reverse=True)
+
+    # Save to session state so button clicks don't lose results
+    st.session_state["scan_results"] = all_results
+    st.session_state["scan_query"]   = query
+
+    # Pre-generate Excel bytes once
+    safe_q   = query.replace(" ", "_").replace("/", "-")[:40]
+    filename = f"leads_{safe_q}.xlsx"
+    write_to_excel(all_results, query, filename=filename)
+    with open(filename, "rb") as f:
+        st.session_state["scan_excel"] = (f.read(), filename)
+
+elif run_btn and not query:
+    st.warning("Please enter a search query.")
+
+# ── Show results (persisted in session_state) ─────────────────────────────────
+if "scan_results" in st.session_state:
+    all_results = st.session_state["scan_results"]
+    saved_query = st.session_state.get("scan_query", "")
+
     filtered = [
         (seo, s, t) for seo, s, t in all_results
         if score_min <= s <= score_max
         and seo.issues_count >= min_issues
     ]
 
-    # Step 3: Stats
+    # Stats
     hot  = sum(1 for _, s, _ in filtered if s >= 70)
     fire = sum(1 for _, s, _ in filtered if 45 <= s < 70)
     warm = sum(1 for _, s, _ in filtered if 20 <= s < 45)
@@ -278,23 +301,17 @@ if run_btn and query:
 
     st.divider()
 
-    # Step 4: Excel download
-    safe_q   = query.replace(" ", "_").replace("/", "-")[:40]
-    filename = f"leads_{safe_q}.xlsx"
-    write_to_excel(filtered, query, filename=filename)
-    with open(filename, "rb") as f:
-        excel_bytes = f.read()
-
-    st.download_button(
-        "📥 Download Excel",
-        data=excel_bytes,
-        file_name=filename,
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
+    # Excel download
+    if "scan_excel" in st.session_state:
+        excel_bytes, filename = st.session_state["scan_excel"]
+        st.download_button(
+            "📥 Download Excel",
+            data=excel_bytes,
+            file_name=filename,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
 
     st.divider()
-
-    # Step 5: Results
     st.subheader(f"Results ({len(filtered)} leads)")
 
     for idx, (seo, lead_score, temp) in enumerate(filtered):
@@ -361,7 +378,7 @@ if run_btn and query:
                             with st.spinner("Writing personalized email…"):
                                 em = generate_email(
                                     url=seo.url,
-                                    query=query,
+                                    query=saved_query,
                                     issues=seo.issues,
                                     verdict=seo.ai.ai_verdict if seo.ai else "",
                                     owner=contacts.get("owner", ""),
@@ -377,9 +394,6 @@ if run_btn and query:
                             st.markdown(f"**Subject:** {em['subject']}")
                             st.text_area("Body", value=em["body"], height=200,
                                          key=f"email_body_{idx}")
-
-elif run_btn and not query:
-    st.warning("Please enter a search query.")
 
 else:
     st.markdown("""
