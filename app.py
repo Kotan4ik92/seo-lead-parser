@@ -156,13 +156,17 @@ with st.sidebar:
 
     niche = st.selectbox("Niche", NICHE_OPTIONS, index=0)
 
-    geo_label = st.selectbox("Market / Geo", list(GEO_OPTIONS.keys()), index=0)
+    geo_col, flag_col = st.columns([4, 1])
+    with geo_col:
+        geo_label = st.selectbox("Market / Geo", list(GEO_OPTIONS.keys()), index=0)
     geo = GEO_OPTIONS[geo_label]
-    st.markdown(
-        f'<img src="https://flagcdn.com/w80/{geo}.png" '
-        f'style="height:24px; border-radius:3px; margin-top:-8px; margin-bottom:4px">',
-        unsafe_allow_html=True,
-    )
+    with flag_col:
+        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+        st.markdown(
+            f'<img src="https://flagcdn.com/w80/{geo}.png" '
+            f'style="height:28px; border-radius:4px; box-shadow:0 1px 4px rgba(0,0,0,0.4)">',
+            unsafe_allow_html=True,
+        )
 
     lang_label = st.selectbox("Site language", list(LANG_OPTIONS.keys()), index=0)
     lang_restrict = LANG_OPTIONS[lang_label]
