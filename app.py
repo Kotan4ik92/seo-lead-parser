@@ -189,18 +189,15 @@ st.set_page_config(
 with st.sidebar:
     st.title("⚙️ Settings")
 
-    serper_key = st.text_input(
-        "Serper.dev API Key",
-        value=config.SERPER_API_KEY,
-        type="password",
-        help="Get free key at serper.dev",
-    )
-    openai_key = st.text_input(
-        "OpenAI API Key",
-        value=config.OPENAI_API_KEY,
-        type="password",
-        help="Used for AI SEO scoring and cold email generation",
-    )
+    # Keys are set via Streamlit Cloud Secrets — never shown in UI
+    serper_key = config.SERPER_API_KEY
+    openai_key = config.OPENAI_API_KEY
+    serper_ok  = "✅" if serper_key else "❌ not set"
+    openai_ok  = "✅" if openai_key else "❌ not set"
+    st.caption(f"Serper.dev API: {serper_ok}")
+    st.caption(f"OpenAI API: {openai_ok}")
+    if not serper_key or not openai_key:
+        st.warning("API keys missing. Set them in Streamlit Cloud → App Settings → Secrets.", icon="🔑")
 
     st.divider()
     st.caption("**Search settings**")
@@ -271,7 +268,7 @@ tmpl_label_col.caption("Quick templates (AI picks trending niches for today):")
 if tmpl_refresh_col.button("🔄", help="Regenerate templates", use_container_width=True):
     get_ai_templates.clear()
 
-TEMPLATES = get_ai_templates(openai_key, niche)
+TEMPLATES = get_ai_templates(config.OPENAI_API_KEY, niche)
 
 tmpl_cols = st.columns(6)
 for i, tmpl in enumerate(TEMPLATES):
@@ -298,8 +295,6 @@ if run_btn and query:
     for key in ["scan_results", "scan_query", "scan_excel"]:
         st.session_state.pop(key, None)
 
-    config.SERPER_API_KEY     = serper_key
-    config.OPENAI_API_KEY     = openai_key
     config.SEARCH_GEO         = geo
     config.MAX_RESULTS        = max_results
     config.MAX_PAGES_PER_SITE = max_pages
