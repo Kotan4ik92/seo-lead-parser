@@ -71,7 +71,23 @@ LANG_OPTIONS = {
     "Portuguese": "lang_pt",
 }
 
-NICHE_OPTIONS = ["All niches", "Ecommerce", "HoReCa", "SaaS"]
+NICHE_OPTIONS  = ["All niches", "Ecommerce", "HoReCa", "SaaS"]
+NICHE_ICONS    = {"All niches": "🌐", "Ecommerce": "🛒", "HoReCa": "🍽️", "SaaS": "💻"}
+
+LANG_FLAGS = {
+    "Any":        "",
+    "English":    "gb",
+    "German":     "de",
+    "French":     "fr",
+    "Spanish":    "es",
+    "Italian":    "it",
+    "Dutch":      "nl",
+    "Polish":     "pl",
+    "Swedish":    "se",
+    "Norwegian":  "no",
+    "Danish":     "dk",
+    "Portuguese": "pt",
+}
 
 FALLBACK_TEMPLATES = [
     "online furniture store USA",
@@ -154,7 +170,15 @@ with st.sidebar:
     st.divider()
     st.caption("**Search settings**")
 
-    niche = st.selectbox("Niche", NICHE_OPTIONS, index=0)
+    niche_col, niche_icon_col = st.columns([4, 1])
+    with niche_col:
+        niche = st.selectbox("Niche", NICHE_OPTIONS, index=0)
+    with niche_icon_col:
+        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div style='font-size:26px; line-height:1'>{NICHE_ICONS[niche]}</div>",
+            unsafe_allow_html=True,
+        )
 
     geo_col, flag_col = st.columns([4, 1])
     with geo_col:
@@ -168,8 +192,22 @@ with st.sidebar:
             unsafe_allow_html=True,
         )
 
-    lang_label = st.selectbox("Site language", list(LANG_OPTIONS.keys()), index=0)
+    lang_col, lang_icon_col = st.columns([4, 1])
+    with lang_col:
+        lang_label = st.selectbox("Site language", list(LANG_OPTIONS.keys()), index=0)
     lang_restrict = LANG_OPTIONS[lang_label]
+    with lang_icon_col:
+        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+        lang_flag = LANG_FLAGS.get(lang_label, "")
+        if lang_flag:
+            st.markdown(
+                f'<img src="https://flagcdn.com/w80/{lang_flag}.png" '
+                f'style="height:28px; border-radius:4px; box-shadow:0 1px 4px rgba(0,0,0,0.4)">',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown("<div style='font-size:26px; line-height:1'>🌐</div>",
+                        unsafe_allow_html=True)
 
     max_results = st.slider("Max sites to scan", 5, 100, 30, step=5)
     max_pages   = st.slider("Pages per site (sitemap)", 5, 20, 15, step=5)
