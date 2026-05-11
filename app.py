@@ -35,25 +35,25 @@ from modules.sheets_writer  import write_to_excel
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 GEO_OPTIONS = {
-    "🇺🇸 USA":         "us",
-    "🇬🇧 UK":          "gb",
-    "🇨🇦 Canada":      "ca",
-    "🇦🇺 Australia":   "au",
-    "🇳🇿 New Zealand": "nz",
-    "🇮🇪 Ireland":     "ie",
-    "🇩🇪 Germany":     "de",
-    "🇫🇷 France":      "fr",
-    "🇳🇱 Netherlands": "nl",
-    "🇧🇪 Belgium":     "be",
-    "🇦🇹 Austria":     "at",
-    "🇨🇭 Switzerland": "ch",
-    "🇸🇪 Sweden":      "se",
-    "🇳🇴 Norway":      "no",
-    "🇩🇰 Denmark":     "dk",
-    "🇪🇸 Spain":       "es",
-    "🇮🇹 Italy":       "it",
-    "🇵🇱 Poland":      "pl",
-    "🇰🇿 Kazakhstan":  "kz",
+    "USA":         "us",
+    "UK":          "gb",
+    "Canada":      "ca",
+    "Australia":   "au",
+    "New Zealand": "nz",
+    "Ireland":     "ie",
+    "Germany":     "de",
+    "France":      "fr",
+    "Netherlands": "nl",
+    "Belgium":     "be",
+    "Austria":     "at",
+    "Switzerland": "ch",
+    "Sweden":      "se",
+    "Norway":      "no",
+    "Denmark":     "dk",
+    "Spain":       "es",
+    "Italy":       "it",
+    "Poland":      "pl",
+    "Kazakhstan":  "kz",
 }
 
 LANG_OPTIONS = {
@@ -158,6 +158,11 @@ with st.sidebar:
 
     geo_label = st.selectbox("Market / Geo", list(GEO_OPTIONS.keys()), index=0)
     geo = GEO_OPTIONS[geo_label]
+    st.markdown(
+        f'<img src="https://flagcdn.com/w80/{geo}.png" '
+        f'style="height:24px; border-radius:3px; margin-top:-8px; margin-bottom:4px">',
+        unsafe_allow_html=True,
+    )
 
     lang_label = st.selectbox("Site language", list(LANG_OPTIONS.keys()), index=0)
     lang_restrict = LANG_OPTIONS[lang_label]
