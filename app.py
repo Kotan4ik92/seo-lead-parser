@@ -106,8 +106,26 @@ LANG_OPTIONS = {
     "Portuguese": "lang_pt",
 }
 
-NICHE_OPTIONS  = ["All niches", "Ecommerce", "HoReCa", "SaaS"]
-NICHE_ICONS    = {"All niches": "🌐", "Ecommerce": "🛒", "HoReCa": "🍽️", "SaaS": "💻"}
+NICHE_OPTIONS  = [
+    "All niches", "Ecommerce", "HoReCa", "SaaS",
+    "Local Services", "Real Estate", "Healthcare",
+    "Beauty & Wellness", "Travel & Tourism", "Fitness & Sport",
+    "Education", "Legal & Finance",
+]
+NICHE_ICONS = {
+    "All niches":       "🌐",
+    "Ecommerce":        "🛒",
+    "HoReCa":          "🍽️",
+    "SaaS":            "💻",
+    "Local Services":  "🔧",
+    "Real Estate":     "🏠",
+    "Healthcare":      "🏥",
+    "Beauty & Wellness": "💅",
+    "Travel & Tourism": "✈️",
+    "Fitness & Sport": "🏋️",
+    "Education":       "🎓",
+    "Legal & Finance": "⚖️",
+}
 
 LANG_FLAGS = {
     "Any":        "",
@@ -430,13 +448,12 @@ if "scan_results" in st.session_state:
 
                 st.markdown("**Technical**")
                 tech_info = {
-                    "Title":         f"{seo.title[:60]}…" if seo.title else "❌ Missing",
-                    "H1":            f"{seo.h1_text[:60]}…" if seo.h1_text else "❌ Missing",
-                    "Meta desc":     f"{seo.meta_desc[:60]}…" if seo.meta_desc else "❌ Missing",
-                    "Sitemap":       "✅" if seo.has_sitemap else "❌",
-                    "Robots":        "✅" if seo.has_robots else "❌",
-                    "Schema":        "✅" if seo.has_schema else "❌",
-                    "HTTPS":         "✅" if seo.https else "❌",
+                    "Title":     f"{seo.title[:60]}… ({seo.title_len} ch)" if seo.title else "❌ Missing",
+                    "H1":        f"{seo.h1_text[:60]}…" if seo.h1_text else "❌ Missing",
+                    "Meta desc": f"{seo.meta_desc[:60]}… ({seo.meta_desc_len} ch)" if seo.meta_desc else "❌ Missing",
+                    "Sitemap":   "✅" if seo.has_sitemap else "❌",
+                    "Robots":    "✅" if seo.has_robots else "❌",
+                    "Schema":    ("✅ " + ", ".join(seo.schema_types)) if seo.schema_types else ("✅" if seo.has_schema else "❌"),
                     "Pages scanned": str(seo.pages_scanned),
                 }
                 for k, v in tech_info.items():

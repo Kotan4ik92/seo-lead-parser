@@ -56,6 +56,17 @@ def _base(url: str) -> str:
     return f"{p.scheme}://{p.netloc}" if p.netloc else ""
 
 
+def _is_skip(domain: str) -> bool:
+    """Match exact domain OR any parent domain (catches subdomains like en.wikipedia.org)."""
+    if domain in SKIP_DOMAINS:
+        return True
+    parts = domain.split(".")
+    for i in range(1, len(parts)):
+        if ".".join(parts[i:]) in SKIP_DOMAINS:
+            return True
+    return False
+
+
 def scrape_serp(query: str, max_results: int = 100, lang_restrict: str = "") -> list[str]:
     urls = _scrape(query, max_results, lang_restrict)
     if not urls and lang_restrict:
@@ -112,7 +123,8 @@ def _scrape(query: str, max_results: int, lang_restrict: str) -> list[str]:
         for item in items:
             base = _base(item.get("link", ""))
             domain = urlparse(base).netloc.replace("www.", "")
-            if domain and domain not in SKIP_DOMAINS and base not in all_urls:
+            # Check domain AND all parent domains (catches en.wikipedia.org etc.)
+            if domain and not _is_skip(domain) and base not in all_urls:
                 all_urls.append(base)
                 new_count += 1
 
