@@ -57,6 +57,14 @@ def _base(url: str) -> str:
 
 
 def scrape_serp(query: str, max_results: int = 100, lang_restrict: str = "") -> list[str]:
+    urls = _scrape(query, max_results, lang_restrict)
+    if not urls and lang_restrict:
+        print(f"[SERP] No results with lang filter '{lang_restrict}', retrying without it…")
+        urls = _scrape(query, max_results, "")
+    return urls
+
+
+def _scrape(query: str, max_results: int, lang_restrict: str) -> list[str]:
     if not config.SERPER_API_KEY:
         print("[SERP] ОШИБКА: не задан SERPER_API_KEY в config.py")
         return []
