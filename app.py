@@ -365,10 +365,22 @@ if "scan_results" in st.session_state:
                         st.markdown("📧 **Emails:** not found")
                     if contacts["phones"]:
                         st.markdown("📞 **Phones:** " + ", ".join(contacts["phones"]))
-                    if contacts["linkedin"]:
-                        st.markdown(f"🔗 **LinkedIn:** [{contacts['linkedin']}]({contacts['linkedin']})")
                     if contacts["owner"]:
                         st.markdown(f"👤 **Owner:** {contacts['owner']}")
+
+                    socials = []
+                    if contacts.get("linkedin"):
+                        socials.append(f"[LinkedIn]({contacts['linkedin']})")
+                    if contacts.get("facebook"):
+                        socials.append(f"[Facebook]({contacts['facebook']})")
+                    if contacts.get("instagram"):
+                        socials.append(f"[Instagram]({contacts['instagram']})")
+                    if contacts.get("twitter"):
+                        socials.append(f"[Twitter/X]({contacts['twitter']})")
+                    if socials:
+                        st.markdown("🌐 **Social:** " + " · ".join(socials))
+                    elif not contacts["emails"]:
+                        st.caption("💡 No contacts found on site — check social media pages manually")
 
                     st.divider()
                     st.markdown("**Cold Email**")

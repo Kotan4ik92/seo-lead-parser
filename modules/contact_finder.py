@@ -14,8 +14,11 @@ import config
 CONTACT_PATHS = ["/contact", "/contact-us", "/about", "/about-us", "/team", "/our-team", "/"]
 
 EMAIL_RE    = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
-PHONE_RE    = re.compile(r"(\+?1?\s?)?(\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4})")
+PHONE_RE    = re.compile(r"(\+?[\d\s\-\(\)]{7,15})")
 LINKEDIN_RE = re.compile(r"https?://(www\.)?linkedin\.com/(?:company|in)/[^\s\"'>]+")
+FACEBOOK_RE = re.compile(r"https?://(www\.)?facebook\.com/[^\s\"'>?]+")
+INSTAGRAM_RE= re.compile(r"https?://(www\.)?instagram\.com/[^\s\"'>?]+")
+TWITTER_RE  = re.compile(r"https?://(www\.)?(twitter|x)\.com/[^\s\"'>?]+")
 
 SKIP_EMAILS = {"example@", "email@", "your@", "info@example", "test@", "noreply@",
                "no-reply@", "support@example", "admin@example"}
@@ -56,10 +59,20 @@ def _extract_from_html(html: str, base_url: str) -> dict:
         if len("".join(filter(str.isdigit, p[1]))) >= 10
     })
 
+    all_hrefs = [str(tag) for tag in soup.find_all(href=True)]
+
     linkedin_urls = list({
-        m.group(0) for m in (LINKEDIN_RE.search(str(tag))
-                              for tag in soup.find_all(href=True))
-        if m
+        m.group(0) for m in (LINKEDIN_RE.search(h) for h in all_hrefs) if m
+    })
+    facebook_urls = list({
+        m.group(0) for m in (FACEBOOK_RE.search(h) for h in all_hrefs) if m
+        if "facebook.com/sharer" not in m.group(0)
+    })
+    instagram_urls = list({
+        m.group(0) for m in (INSTAGRAM_RE.search(h) for h in all_hrefs) if m
+    })
+    twitter_urls = list({
+        m.group(0) for m in (TWITTER_RE.search(h) for h in all_hrefs) if m
     })
 
     # Пробуем найти имя владельца — ищем паттерны "Founded by", "Owner:", "CEO:"
@@ -72,16 +85,19 @@ def _extract_from_html(html: str, base_url: str) -> dict:
             break
 
     return {
-        "emails":   emails[:5],
-        "phones":   [p[:10] for p in phones[:3]],
-        "linkedin": linkedin_urls[0] if linkedin_urls else "",
-        "owner":    owner,
+        "emails":    emails[:5],
+        "phones":    phones[:3],
+        "linkedin":  linkedin_urls[0] if linkedin_urls else "",
+        "facebook":  facebook_urls[0] if facebook_urls else "",
+        "instagram": instagram_urls[0] if instagram_urls else "",
+        "twitter":   twitter_urls[0] if twitter_urls else "",
+        "owner":     owner,
     }
 
 
 def find_contacts(base_url: str) -> dict:
     """Возвращает словарь с контактами сайта."""
-    result = {"emails": [], "phones": [], "linkedin": "", "owner": ""}
+    result = {"emails": [], "phones": [], "linkedin": "", "facebook": "", "instagram": "", "twitter": "", "owner": ""}
     session = requests.Session()
     session.headers.update({
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -90,7 +106,7 @@ def find_contacts(base_url: str) -> dict:
     })
 
     all_emails, all_phones = set(), set()
-    linkedin, owner = "", ""
+    linkedin = facebook = instagram = twitter = owner = ""
 
     for path in CONTACT_PATHS:
         html = _fetch(urljoin(base_url, path), session)
@@ -101,6 +117,12 @@ def find_contacts(base_url: str) -> dict:
         all_phones.update(data["phones"])
         if not linkedin and data["linkedin"]:
             linkedin = data["linkedin"]
+        if not facebook and data["facebook"]:
+            facebook = data["facebook"]
+        if not instagram and data["instagram"]:
+            instagram = data["instagram"]
+        if not twitter and data["twitter"]:
+            twitter = data["twitter"]
         if not owner and data["owner"]:
             owner = data["owner"]
 
@@ -109,9 +131,12 @@ def find_contacts(base_url: str) -> dict:
     site_emails = [e for e in all_emails if site_domain in e]
     other_emails = [e for e in all_emails if site_domain not in e]
 
-    result["emails"]   = (site_emails + other_emails)[:3]
-    result["phones"]   = list(all_phones)[:2]
-    result["linkedin"] = linkedin
-    result["owner"]    = owner
+    result["emails"]    = (site_emails + other_emails)[:3]
+    result["phones"]    = list(all_phones)[:2]
+    result["linkedin"]  = linkedin
+    result["facebook"]  = facebook
+    result["instagram"] = instagram
+    result["twitter"]   = twitter
+    result["owner"]     = owner
 
     return result
