@@ -23,6 +23,7 @@ STATUSES_FILE    = DATA_DIR / "statuses.json"
 HISTORY_FILE     = DATA_DIR / "history.json"
 SENT_EMAILS_FILE = DATA_DIR / "sent_emails.json"
 SEND_LOG_FILE    = DATA_DIR / "send_log.json"
+LEAD_DATA_FILE   = DATA_DIR / "lead_data.json"
 
 STATUS_OPTIONS = ["🟡 New", "📨 Contacted", "✅ Interested", "❌ Skip"]
 
@@ -42,6 +43,41 @@ def load_history() -> list:
         return json.loads(HISTORY_FILE.read_text(encoding="utf-8")) if HISTORY_FILE.exists() else []
     except Exception:
         return []
+
+def load_lead_data() -> dict:
+    try:
+        return json.loads(LEAD_DATA_FILE.read_text(encoding="utf-8")) if LEAD_DATA_FILE.exists() else {}
+    except Exception:
+        return {}
+
+def save_lead_data(data: dict):
+    LEAD_DATA_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+def mark_contacted(url: str):
+    data = load_lead_data()
+    entry = data.get(url, {})
+    entry["contacted_at"]    = datetime.date.today().isoformat()
+    entry["contact_count"]   = entry.get("contact_count", 0) + 1
+    data[url] = entry
+    save_lead_data(data)
+
+def save_note(url: str, note: str):
+    data = load_lead_data()
+    data.setdefault(url, {})["note"] = note
+    save_lead_data(data)
+
+def get_followup_due(days: int = 7) -> list[str]:
+    """Returns URLs that have been Contacted for `days`+ days without status change."""
+    data      = load_lead_data()
+    statuses  = load_statuses()
+    today     = datetime.date.today()
+    due = []
+    for url, entry in data.items():
+        if statuses.get(url) == "📨 Contacted" and "contacted_at" in entry:
+            contacted = datetime.date.fromisoformat(entry["contacted_at"])
+            if (today - contacted).days >= days:
+                due.append((url, (today - contacted).days))
+    return due
 
 def get_today_send_count() -> int:
     today = datetime.date.today().isoformat()
@@ -457,6 +493,13 @@ if "scan_results" in st.session_state:
     all_results = st.session_state["scan_results"]
     saved_query = st.session_state.get("scan_query", "")
 
+    # ── Follow-up reminders ───────────────────────────────────────────────────
+    followup_due = get_followup_due(days=7)
+    if followup_due:
+        with st.expander(f"⏰ Follow-up reminder — {len(followup_due)} leads waiting 7+ days", expanded=True):
+            for fu_url, fu_days in followup_due:
+                st.markdown(f"- **{fu_url}** — contacted **{fu_days} days ago**, no update yet")
+
     filtered = [
         (seo, s, t) for seo, s, t in all_results
         if score_min <= s <= score_max
@@ -629,6 +672,7 @@ if "scan_results" in st.session_state:
                         sent_ok += 1
                         save_status(seo.url, "📨 Contacted")
                         save_sent_email(emails[0])
+                        mark_contacted(seo.url)
                         increment_send_count()
                         sent_emails.add(emails[0].lower().strip())
                         # Store contact email for export
@@ -671,13 +715,18 @@ if "scan_results" in st.session_state:
 
         statuses     = load_statuses()
         lead_status  = statuses.get(seo.url, "🟡 New")
+        lead_data     = load_lead_data()
+        lead_entry    = lead_data.get(seo.url, {})
+        contact_count = lead_entry.get("contact_count", 0)
+        contact_badge = f"  📨 ×{contact_count}" if contact_count > 0 else ""
+
         flags = []
         if not seo.niche_match:        flags.append("⚠️ Off-niche?")
         if seo.has_seo_agency:         flags.append("🔄 Has SEO agency?")
         if seo.large_site:             flags.append("📦 Large site")
         if seo.is_marketplace:         flags.append("🏪 Marketplace?")
         flags_str = "  " + "  ".join(flags) if flags else ""
-        header = f"{lead_status}  {temp}  |  **{seo.url}**  |  Score: {lead_score}  |  Issues: {seo.issues_count}{flags_str}"
+        header = f"{lead_status}  {temp}  |  **{seo.url}**  |  Score: {lead_score}  |  Issues: {seo.issues_count}{contact_badge}{flags_str}"
         with st.expander(header, expanded=(idx < 3)):
 
             # Status selector
@@ -783,6 +832,25 @@ if "scan_results" in st.session_state:
                         else:
                             st.markdown(f"**Subject:** `{em['subject']}`")
                             st.code(em["body"], language=None)
+
+            # ── Notes ─────────────────────────────────────────────────────────
+            st.divider()
+            st.markdown("**📝 Notes**")
+            note_key  = f"note_{idx}"
+            saved_note = lead_entry.get("note", "")
+            if note_key not in st.session_state:
+                st.session_state[note_key] = saved_note
+            note_val = st.text_area(
+                "Notes", value=st.session_state[note_key],
+                key=f"note_area_{idx}",
+                label_visibility="collapsed",
+                placeholder="Add notes about this lead…",
+                height=80,
+            )
+            if st.button("💾 Save note", key=f"save_note_{idx}"):
+                save_note(seo.url, note_val)
+                st.session_state[note_key] = note_val
+                st.success("Saved", icon="✅")
 
 # ── Scan history ─────────────────────────────────────────────────────────────
 history = load_history()
