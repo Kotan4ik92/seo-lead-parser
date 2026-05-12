@@ -522,7 +522,6 @@ if "scan_results" in st.session_state:
     if config.ZOHO_EMAIL and config.ZOHO_APP_PASSWORD and "scan_results" in st.session_state:
         st.divider()
         st.markdown("**📤 Auto-send cold emails**")
-        st.caption("Finds contacts → generates email → sends to all warm/hot leads (score 20+) with status 🟡 New")
 
         today_sent = get_today_send_count()
         remaining  = max(0, daily_limit - today_sent)
@@ -532,7 +531,30 @@ if "scan_results" in st.session_state:
         else:
             st.caption(f"📬 Sent today: **{today_sent} / {daily_limit}** — {remaining} remaining")
 
-        if remaining > 0 and st.button("📤 Send to all hot/warm leads", type="primary", use_container_width=False):
+        # ── Exclusion filters ──────────────────────────────────────────────────
+        st.caption("**Skip leads with these flags:**")
+        excl_cols = st.columns(4)
+        excl_agency      = excl_cols[0].checkbox("🔄 Has SEO agency?", value=False)
+        excl_large       = excl_cols[1].checkbox("📦 Large site",      value=False)
+        excl_marketplace = excl_cols[2].checkbox("🏪 Marketplace?",    value=True)
+        excl_offniche    = excl_cols[3].checkbox("⚠️ Off-niche?",      value=False)
+
+        # Preview count
+        all_res_preview  = st.session_state["scan_results"]
+        statuses_preview = load_statuses()
+        preview_targets  = [
+            (seo, sc, t) for seo, sc, t in all_res_preview
+            if seo.reachable and sc >= 20
+            and statuses_preview.get(seo.url, "🟡 New") == "🟡 New"
+            and not (excl_agency      and seo.has_seo_agency)
+            and not (excl_large       and seo.large_site)
+            and not (excl_marketplace and seo.is_marketplace)
+            and not (excl_offniche    and not seo.niche_match)
+        ]
+        st.caption(f"Will send to **{min(len(preview_targets), remaining)}** leads "
+                   f"({len(preview_targets)} match filters, {remaining} quota remaining)")
+
+        if remaining > 0 and st.button("📤 Send emails", type="primary", use_container_width=False):
             all_res   = st.session_state["scan_results"]
             saved_q   = st.session_state.get("scan_query", "")
             statuses  = load_statuses()
@@ -542,12 +564,16 @@ if "scan_results" in st.session_state:
                 (seo, sc, t) for seo, sc, t in all_res
                 if seo.reachable and sc >= 20
                 and statuses.get(seo.url, "🟡 New") == "🟡 New"
+                and not (excl_agency      and seo.has_seo_agency)
+                and not (excl_large       and seo.large_site)
+                and not (excl_marketplace and seo.is_marketplace)
+                and not (excl_offniche    and not seo.niche_match)
             ][:remaining]  # cap at daily quota
 
             if not targets:
-                st.info("No new warm/hot leads to send to — all already contacted or score < 20.")
+                st.info("No leads match current filters.")
             else:
-                st.info(f"Found **{len(targets)}** leads to process ({remaining} sends remaining today). Starting…")
+                st.info(f"Sending to **{len(targets)}** leads. Starting…")
                 prog   = st.progress(0)
                 log    = st.empty()
 
