@@ -394,6 +394,17 @@ with st.sidebar:
 st.title("🔍 SEO Lead Parser")
 st.markdown("Find websites with poor SEO → turn them into warm leads.")
 
+# ── Follow-up reminders (always visible) ──────────────────────────────────────
+followup_due = get_followup_due(days=7)
+if followup_due:
+    with st.expander(f"⏰ Follow-up needed — {len(followup_due)} leads waiting 7+ days", expanded=True):
+        st.caption("These leads have been in **📨 Contacted** status for 7+ days — time to send a follow-up.")
+        for fu_url, fu_days in sorted(followup_due, key=lambda x: -x[1]):
+            lead_data_entry = load_lead_data().get(fu_url, {})
+            note = lead_data_entry.get("note", "")
+            note_str = f" · 📝 *{note}*" if note else ""
+            st.markdown(f"- [{fu_url}]({fu_url}) — **{fu_days} days** since last contact{note_str}")
+
 # AI templates
 tmpl_label_col, tmpl_refresh_col = st.columns([5, 1])
 tmpl_label_col.caption("Quick templates (AI picks trending niches for today):")
@@ -492,13 +503,6 @@ elif run_btn and not query:
 if "scan_results" in st.session_state:
     all_results = st.session_state["scan_results"]
     saved_query = st.session_state.get("scan_query", "")
-
-    # ── Follow-up reminders ───────────────────────────────────────────────────
-    followup_due = get_followup_due(days=7)
-    if followup_due:
-        with st.expander(f"⏰ Follow-up reminder — {len(followup_due)} leads waiting 7+ days", expanded=True):
-            for fu_url, fu_days in followup_due:
-                st.markdown(f"- **{fu_url}** — contacted **{fu_days} days ago**, no update yet")
 
     filtered = [
         (seo, s, t) for seo, s, t in all_results
