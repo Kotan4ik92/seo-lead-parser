@@ -51,21 +51,29 @@ def append_history(query: str, geo: str, niche: str, total: int, hot: int, fire:
     HISTORY_FILE.write_text(json.dumps(h[:100], ensure_ascii=False, indent=2), encoding="utf-8")
 
 # On Streamlit Cloud, secrets are injected via st.secrets
+_GSHEET_SA:   dict | None = None   # service account JSON dict
+_GSHEET_ID:   str  = ""            # spreadsheet ID
+
 try:
     import streamlit as _st_pre
     if "SERPER_API_KEY" in _st_pre.secrets:
         config.SERPER_API_KEY = _st_pre.secrets["SERPER_API_KEY"]
     if "OPENAI_API_KEY" in _st_pre.secrets:
         config.OPENAI_API_KEY = _st_pre.secrets["OPENAI_API_KEY"]
+    if "gcp_service_account" in _st_pre.secrets:
+        _GSHEET_SA = dict(_st_pre.secrets["gcp_service_account"])
+    if "GSHEET_ID" in _st_pre.secrets:
+        _GSHEET_ID = _st_pre.secrets["GSHEET_ID"]
 except Exception:
     pass
 
-from modules.serp_scraper   import scrape_serp
-from modules.seo_scanner    import scan
-from modules.scorer         import score
-from modules.contact_finder import find_contacts
-from modules.email_writer   import generate_email
-from modules.sheets_writer  import write_to_excel
+from modules.serp_scraper    import scrape_serp
+from modules.seo_scanner     import scan
+from modules.scorer          import score
+from modules.contact_finder  import find_contacts
+from modules.email_writer    import generate_email
+from modules.sheets_writer   import write_to_excel
+from modules.gsheets_writer  import push_to_gsheets
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -213,8 +221,10 @@ with st.sidebar:
     openai_key = config.OPENAI_API_KEY
     serper_ok  = "✅" if serper_key else "❌ not set"
     openai_ok  = "✅" if openai_key else "❌ not set"
+    gsheet_ok  = "✅" if (_GSHEET_SA and _GSHEET_ID) else "❌ not set"
     st.caption(f"Serper.dev API: {serper_ok}")
     st.caption(f"OpenAI API: {openai_ok}")
+    st.caption(f"Google Sheets: {gsheet_ok}")
     if not serper_key or not openai_key:
         st.warning("API keys missing. Set them in Streamlit Cloud → App Settings → Secrets.", icon="🔑")
 
@@ -404,15 +414,31 @@ if "scan_results" in st.session_state:
 
     st.divider()
 
-    # Excel download
+    # Export buttons
+    export_col1, export_col2 = st.columns([2, 3])
+
     if "scan_excel" in st.session_state:
         excel_bytes, filename = st.session_state["scan_excel"]
-        st.download_button(
+        export_col1.download_button(
             "📥 Download Excel",
             data=excel_bytes,
             file_name=filename,
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
+
+    if _GSHEET_SA and _GSHEET_ID and "scan_results" in st.session_state:
+        if export_col2.button("📊 Push to Google Sheets", use_container_width=True):
+            with st.spinner("Pushing to Google Sheets…"):
+                try:
+                    sheet_url = push_to_gsheets(
+                        results=st.session_state["scan_results"],
+                        query=st.session_state.get("scan_query", "scan"),
+                        sa_info=_GSHEET_SA,
+                        spreadsheet_id=_GSHEET_ID,
+                    )
+                    st.success(f"✅ Done! [Open Google Sheets]({sheet_url})", icon="📊")
+                except Exception as e:
+                    st.error(f"Google Sheets error: {e}")
 
     st.divider()
     st.subheader(f"Results ({len(filtered)} leads)")
