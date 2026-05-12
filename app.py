@@ -524,13 +524,20 @@ if "scan_results" in st.session_state:
                 log.empty()
                 prog.empty()
 
-                st.success(
-                    f"✅ Done!  Sent: **{sent_ok}**  |  "
-                    f"No contact found: **{no_contact}**  |  "
-                    f"Errors: **{errors}**"
-                )
-                if sent_ok:
-                    st.rerun()
+                st.session_state["send_summary"] = {
+                    "sent": sent_ok, "no_contact": no_contact, "errors": errors
+                }
+                st.rerun()
+
+    if "send_summary" in st.session_state:
+        s = st.session_state["send_summary"]
+        st.success(
+            f"✅ Отправка завершена  |  Отправлено: **{s['sent']}**  |  "
+            f"Нет контакта: **{s['no_contact']}**  |  Ошибок: **{s['errors']}**"
+        )
+        if st.button("✖ Закрыть", key="close_summary"):
+            del st.session_state["send_summary"]
+            st.rerun()
 
     st.divider()
     st.subheader(f"Results ({len(filtered)} leads)")
