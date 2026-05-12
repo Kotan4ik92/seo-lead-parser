@@ -6,7 +6,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-ZOHO_SMTP = "smtp.zoho.com"
+ZOHO_SMTP = "smtp.zoho.eu"
 ZOHO_PORT = 587
 
 
