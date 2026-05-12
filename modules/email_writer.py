@@ -35,6 +35,7 @@ AI SEO verdict: {verdict}
 
 HUMANIZATION RULES (most important):
 - Sound like a real person who actually looked at their site — not a template
+- GREETING: If owner name is known, use it naturally (e.g. "Hey John,"). If owner is unknown — skip the greeting entirely, start straight with the observation about their business. NEVER write "Hey Business Owner", "Hi there", "Dear Sir/Madam" or any generic salutation.
 - No corporate openers: NEVER use "I hope this email finds you well", "I wanted to reach out", "I came across your website"
 - Use contractions naturally: you're, we've, it's, don't, we'd
 - Mix short and long sentences — vary the rhythm
@@ -84,7 +85,7 @@ def generate_email(
             messages=[{"role": "user", "content": PROMPT.format(
                 url=url,
                 query=query,
-                owner=owner or "Business Owner",
+                owner=owner or "unknown",
                 email=email or "(unknown)",
                 issues_block=issues_block,
                 verdict=verdict or "(not available)",
