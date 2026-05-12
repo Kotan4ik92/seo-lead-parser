@@ -397,12 +397,10 @@ if run_btn and query:
     _warm = sum(1 for _, s, _ in all_results if 20 <= s < 45)
     append_history(query, geo_label, niche, len(all_results), _hot, _fire, _warm)
 
-    # Pre-generate Excel bytes once
+    # Pre-generate Excel bytes once (contacts/statuses added at download time)
     safe_q   = query.replace(" ", "_").replace("/", "-")[:40]
     filename = f"leads_{safe_q}.xlsx"
-    write_to_excel(all_results, query, filename=filename)
-    with open(filename, "rb") as f:
-        st.session_state["scan_excel"] = (f.read(), filename)
+    st.session_state["scan_excel_filename"] = filename
 
 elif run_btn and not query:
     st.warning("Please enter a search query.")
@@ -437,8 +435,19 @@ if "scan_results" in st.session_state:
     # Export buttons
     export_col1, export_col2 = st.columns([2, 3])
 
-    if "scan_excel" in st.session_state:
-        excel_bytes, filename = st.session_state["scan_excel"]
+    if "scan_excel_filename" in st.session_state:
+        filename = st.session_state["scan_excel_filename"]
+        _contacts_map = st.session_state.get("contacts_emails", {})
+        _statuses_map = load_statuses()
+        write_to_excel(
+            st.session_state["scan_results"],
+            st.session_state.get("scan_query", ""),
+            filename=filename,
+            contacts=_contacts_map,
+            statuses=_statuses_map,
+        )
+        with open(filename, "rb") as f:
+            excel_bytes = f.read()
         export_col1.download_button(
             "📥 Download Excel",
             data=excel_bytes,
@@ -455,6 +464,8 @@ if "scan_results" in st.session_state:
                         query=st.session_state.get("scan_query", "scan"),
                         sa_info=_GSHEET_SA,
                         spreadsheet_id=_GSHEET_ID,
+                        contacts=st.session_state.get("contacts_emails", {}),
+                        statuses=load_statuses(),
                     )
                     st.success(f"✅ Done! [Open Google Sheets]({sheet_url})", icon="📊")
                 except Exception as e:
@@ -537,6 +548,10 @@ if "scan_results" in st.session_state:
                         save_status(seo.url, "📨 Contacted")
                         save_sent_email(emails[0])
                         sent_emails.add(emails[0].lower().strip())
+                        # Store contact email for export
+                        if "contacts_emails" not in st.session_state:
+                            st.session_state["contacts_emails"] = {}
+                        st.session_state["contacts_emails"][seo.url] = emails[0]
                     else:
                         errors += 1
                         st.warning(f"❌ `{seo.url}` → {result['error']}")

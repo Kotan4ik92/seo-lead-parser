@@ -46,6 +46,8 @@ def push_to_gsheets(
     query: str,
     sa_info: dict,
     spreadsheet_id: str,
+    contacts: dict = None,
+    statuses: dict = None,
 ) -> str:
     """
     Writes results to a new tab.  Returns the tab URL.
@@ -64,11 +66,13 @@ def push_to_gsheets(
     ws = sh.add_worksheet(title=tab_name, rows=n_rows, cols=len(HEADERS))
 
     # ── Build rows ──────────────────────────────────────────────────────────────
-    AI_COLS = {6, 8, 10, 11, 12}   # 0-based indices of AI score columns
+    AI_COLS = {8, 10, 12, 13, 14}   # 0-based indices of AI score columns (shifted by 2 new cols)
 
     rows: list[list] = [HEADERS]
     for i, (seo, sc, temp) in enumerate(results, 1):
-        row = _row_data(i, seo, sc, temp, query)
+        email  = (contacts or {}).get(seo.url, "")
+        status = (statuses or {}).get(seo.url, "")
+        row = _row_data(i, seo, sc, temp, query, email, status)
         for ci in AI_COLS:
             row[ci] = _score_text(row[ci])
         rows.append(row)

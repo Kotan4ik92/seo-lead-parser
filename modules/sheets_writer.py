@@ -51,6 +51,8 @@ COLUMNS = [
     ("Запрос",          18),
     ("Лид",             12),   # температура
     ("Балл",             6),
+    ("Contact Email",   28),
+    ("Статус",          14),
     ("Title",           30),
     ("Title AI",        10),
     ("Meta Desc",       30),
@@ -66,7 +68,6 @@ COLUMNS = [
     ("Lang",             6),
     ("Viewport",         8),
     ("Проблемы",        30),
-    ("Статус",          12),
     ("Примечания",      20),
 ]
 
@@ -94,7 +95,8 @@ def _trunc(text: str, n: int) -> str:
 
 
 def _row_data(i: int, seo: SeoResult, score: int,
-              temp: str, query: str) -> list:
+              temp: str, query: str,
+              contact_email: str = "", status: str = "") -> list:
     ai = seo.ai
     tech_issues = "; ".join(
         iss for iss in seo.issues if not iss.startswith("[AI]")
@@ -106,6 +108,8 @@ def _row_data(i: int, seo: SeoResult, score: int,
         query,
         temp,
         score,
+        contact_email or "—",
+        status or "🟡 New",
         _trunc(seo.title, 60) or "—",
         ai.title_score,
         _trunc(seo.meta_desc, 60) or "—",
@@ -121,13 +125,13 @@ def _row_data(i: int, seo: SeoResult, score: int,
         _yn(seo.lang_set),
         _yn(seo.viewport_set),
         tech_issues,
-        "",   # Статус
         "",   # Примечания
     ]
 
 
 def write_to_excel(results: list[tuple[SeoResult, int, str]],
-                   query: str, filename: str = "leads.xlsx") -> None:
+                   query: str, filename: str = "leads.xlsx",
+                   contacts: dict = None, statuses: dict = None) -> None:
     if not XLSX_OK:
         print("[!] openpyxl не установлен — сохраняю в CSV")
         write_to_csv(results, query)
@@ -157,7 +161,9 @@ def write_to_excel(results: list[tuple[SeoResult, int, str]],
 
     # ── Данные ─────────────────────────────────────────
     for row_idx, (seo, score, temp) in enumerate(results, 2):
-        data = _row_data(row_idx - 1, seo, score, temp, query)
+        email  = (contacts or {}).get(seo.url, "")
+        status = (statuses or {}).get(seo.url, "")
+        data = _row_data(row_idx - 1, seo, score, temp, query, email, status)
         alt = (row_idx % 2 == 0)
 
         # Цвет строки по температуре
