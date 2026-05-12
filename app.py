@@ -240,7 +240,6 @@ if _APP_PASSWORD:
             "<div style='max-width:360px; margin:80px auto 0'>",
             unsafe_allow_html=True,
         )
-        st.image("https://flagcdn.com/w80/us.png", width=0)  # preload trick
         st.title("🔍 SEO Lead Parser")
         st.caption("SEOBRO internal tool — team access only")
         pwd = st.text_input("Password", type="password", placeholder="Enter password…")
