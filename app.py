@@ -644,8 +644,13 @@ if "scan_results" in st.session_state:
 
         statuses     = load_statuses()
         lead_status  = statuses.get(seo.url, "🟡 New")
-        niche_flag   = "" if seo.niche_match else "  ⚠️ Off-niche?"
-        header = f"{lead_status}  {temp}  |  **{seo.url}**  |  Score: {lead_score}  |  Issues: {seo.issues_count}{niche_flag}"
+        flags = []
+        if not seo.niche_match:        flags.append("⚠️ Off-niche?")
+        if seo.has_seo_agency:         flags.append("🔄 Has SEO agency?")
+        if seo.large_site:             flags.append("📦 Large site")
+        if seo.is_marketplace:         flags.append("🏪 Marketplace?")
+        flags_str = "  " + "  ".join(flags) if flags else ""
+        header = f"{lead_status}  {temp}  |  **{seo.url}**  |  Score: {lead_score}  |  Issues: {seo.issues_count}{flags_str}"
         with st.expander(header, expanded=(idx < 3)):
 
             # Status selector
@@ -659,6 +664,12 @@ if "scan_results" in st.session_state:
 
             if not seo.niche_match and niche != "All niches":
                 st.warning(f"⚠️ Site may not match **{niche}** niche — verify manually before outreach.", icon="🔍")
+            if seo.has_seo_agency:
+                st.info("🔄 Likely already working with an SEO agency — but worth reaching out anyway.", icon="💡")
+            if seo.large_site:
+                st.warning(f"📦 Large site (300+ pages in sitemap) — may be outside ideal client size.", icon="📦")
+            if seo.is_marketplace:
+                st.warning("🏪 Marketplace signals detected — verify if this is a good fit.", icon="🏪")
 
             st.divider()
             col_a, col_b = st.columns(2)

@@ -58,7 +58,10 @@ class SeoResult:
     # Итог
     issues: list[str] = field(default_factory=list)
     issues_count: int = 0
-    niche_match: bool = True  # False = сайт скорее всего не в нише
+    niche_match: bool = True       # False = сайт скорее всего не в нише
+    has_seo_agency: bool = False   # True = вероятно уже работает с SEO-агентством
+    large_site: bool = False       # True = большой сайт (300+ страниц)
+    is_marketplace: bool = False   # True = признаки маркетплейса
 
 
 def _fetch(url: str, session: requests.Session, timeout: int = None):
@@ -231,7 +234,7 @@ def scan(url: str, session: requests.Session, query: str = "", niche: str = "") 
             robots_snippet=result.robots_snippet,
         )
 
-    result.issues      = issues
+    result.issues       = issues
     result.issues_count = len(issues)
 
     # Niche heuristic check
@@ -240,6 +243,27 @@ def scan(url: str, session: requests.Session, query: str = "", niche: str = "") 
             niche,
             f"{result.title} {result.h1_text} {result.meta_desc}".lower()
         )
+
+    # ── ICP flags ──────────────────────────────────────────────────────────────
+    page_text = resp.text.lower()
+
+    # Large site flag (300–500 pages — not auto-disqualified but worth noting)
+    result.large_site = 300 <= len(sitemap_urls) <= 500
+
+    # Marketplace flag
+    marketplace_signals = ["marketplace", "list your business", "become a seller",
+                           "sell on ", "vendor portal", "list your store"]
+    result.is_marketplace = any(s in page_text for s in marketplace_signals)
+
+    # SEO agency flag — check footer/bottom of page for agency credits
+    seo_agency_signals = [
+        "seo by ", "seo services by", "digital marketing by",
+        "powered by seo", "marketing agency", "seo agency",
+        "designed & seo", "website by ", "web design & seo",
+        "search engine optimization by",
+    ]
+    footer_area = page_text[-8000:]  # check last ~8kb (footer area)
+    result.has_seo_agency = any(s in footer_area for s in seo_agency_signals)
 
     return result
 
