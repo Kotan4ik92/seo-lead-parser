@@ -606,6 +606,7 @@ if "scan_results" in st.session_state:
                         verdict=seo.ai.ai_verdict if seo.ai else "",
                         owner=contacts.get("owner", ""),
                         email=emails[0],
+                        niche=niche,
                     )
 
                     if em.get("error") or not em.get("body"):
@@ -771,6 +772,7 @@ if "scan_results" in st.session_state:
                                     verdict=seo.ai.ai_verdict if seo.ai else "",
                                     owner=contacts.get("owner", ""),
                                     email=contacts["emails"][0] if contacts["emails"] else "",
+                                    niche=niche,
                                 )
                             st.session_state[email_key] = em
 
