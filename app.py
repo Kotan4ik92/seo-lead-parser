@@ -66,6 +66,7 @@ def append_history(query: str, geo: str, niche: str, total: int, hot: int, fire:
 # On Streamlit Cloud, secrets are injected via st.secrets
 _GSHEET_SA:   dict | None = None   # service account JSON dict
 _GSHEET_ID:   str  = ""            # spreadsheet ID
+_APP_PASSWORD: str = ""            # access password
 
 try:
     import streamlit as _st_pre
@@ -81,6 +82,8 @@ try:
         config.ZOHO_EMAIL = _st_pre.secrets["ZOHO_EMAIL"]
     if "ZOHO_APP_PASSWORD" in _st_pre.secrets:
         config.ZOHO_APP_PASSWORD = _st_pre.secrets["ZOHO_APP_PASSWORD"]
+    if "APP_PASSWORD" in _st_pre.secrets:
+        _APP_PASSWORD = _st_pre.secrets["APP_PASSWORD"]
 except Exception:
     pass
 
@@ -229,6 +232,26 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# ── Password gate ─────────────────────────────────────────────────────────────
+if _APP_PASSWORD:
+    if not st.session_state.get("authenticated"):
+        st.markdown(
+            "<div style='max-width:360px; margin:80px auto 0'>",
+            unsafe_allow_html=True,
+        )
+        st.image("https://flagcdn.com/w80/us.png", width=0)  # preload trick
+        st.title("🔍 SEO Lead Parser")
+        st.caption("SEOBRO internal tool — team access only")
+        pwd = st.text_input("Password", type="password", placeholder="Enter password…")
+        if st.button("Sign in", type="primary", use_container_width=True):
+            if pwd == _APP_PASSWORD:
+                st.session_state["authenticated"] = True
+                st.rerun()
+            else:
+                st.error("Wrong password")
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.stop()
 
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 with st.sidebar:
