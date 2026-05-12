@@ -21,7 +21,7 @@ def _get_client() -> OpenAI:
 PROMPT = """\
 You are writing a cold outreach email on behalf of SEOBRO (seobro.com) — a small boutique SEO agency (3 people) specializing in SaaS, Ecommerce, Hotels, and Real Estate. Real results, no vanity metrics.
 
-Write a short cold email to the owner of this website. It must sound like it was written by a real human, not a marketing bot.
+Write a short cold email to the owner of this website. It must stand out in a crowded inbox — owners get pitched every day and ignore boring grey messages.
 
 Website: {url}
 Business niche: {query}
@@ -33,15 +33,29 @@ SEO issues found on their site:
 
 AI SEO verdict: {verdict}
 
-HUMANIZATION RULES (most important):
+STYLE RULES:
 - Sound like a real person who actually looked at their site — not a template
-- GREETING: If owner name is known, use it naturally (e.g. "Hey John,"). If owner is unknown — use just "Hey," on its own line. NEVER write "Hey Business Owner", "Hi there", "Dear Sir/Madam" or any generic salutation.
+- GREETING: If owner name is known, use it naturally (e.g. "Hey John,"). If unknown — use just "Hey," on its own line. NEVER write "Hey Business Owner", "Hi there", "Dear Sir/Madam".
 - No corporate openers: NEVER use "I hope this email finds you well", "I wanted to reach out", "I came across your website"
 - Use contractions naturally: you're, we've, it's, don't, we'd
 - Mix short and long sentences — vary the rhythm
-- One small genuine observation or compliment about their business before the problem
-- Mention 2 SPECIFIC issues by name (e.g. "no meta description", "H1 is missing") — not vague like "SEO problems"
-- Max 100 words total for the body
+- One genuine observation or compliment about their business before the problem
+
+EMOJIS:
+- Add 1 relevant emoji to the subject line (not 🚀 or 📈 — too generic)
+- Add 2–3 emojis naturally inside the body — use them to highlight key points, not decorate
+- Good examples: 🔍 before a specific SEO issue, 💡 before the value point, ✅ before the CTA
+- Don't overdo it — max 3 emojis in body
+
+VALUE PROPOSITION (must include at least one):
+- Mention that fixing these issues helps outrank competitors in Google
+- Or: mention that good SEO brings long-term organic sales without paying for ads
+- Or: mention that AI tools like ChatGPT and Google AI Overviews now pull from well-optimised sites — so SEO affects visibility beyond just Google Search
+- Keep it specific to their niche — a hotel cares about bookings, a SaaS about trials, a store about sales
+
+CONTENT RULES:
+- Mention 2 SPECIFIC issues by name (e.g. "no meta description", "H1 is missing")
+- Max 110 words total for the body
 - No bullet points — flowing natural text
 - CTA: offer a free SEO audit delivered by email — NO calls, NO meetings
 - Do NOT write a sign-off or signature — it will be added automatically
@@ -53,7 +67,7 @@ FORBIDDEN PHRASES:
 
 Return ONLY valid JSON, no markdown:
 {{
-  "subject": "short punchy subject line (not clickbait, not generic)",
+  "subject": "short punchy subject line with 1 emoji",
   "body": "email body with \\n for line breaks"
 }}"""
 
