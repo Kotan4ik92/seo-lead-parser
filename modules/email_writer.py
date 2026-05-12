@@ -18,7 +18,7 @@ def _get_client() -> OpenAI:
     return _client
 
 
-NICHE_HINTS = {{
+NICHE_HINTS = {
     "Ecommerce": (
         "Focus on: more organic product discovery, higher sales without ad spend, "
         "outranking competitor stores. Mention that well-optimised product pages bring "
@@ -67,7 +67,7 @@ NICHE_HINTS = {{
         "Focus on: more consultation requests, ranking for high-intent legal/financial "
         "keywords, building authority that makes clients trust you before they call."
     ),
-}}
+}
 
 PROMPT = """\
 You are writing a cold outreach email on behalf of SEOBRO (seobro.com) — a boutique SEO agency with a proven track record (one client generated $1M+ in additional organic revenue over 6 years). Small team, real results, no vanity metrics.
