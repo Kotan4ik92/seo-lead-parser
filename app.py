@@ -498,6 +498,7 @@ if "scan_results" in st.session_state:
 
                     if em.get("error") or not em.get("body"):
                         errors += 1
+                        st.warning(f"❌ `{seo.url}` → email gen error: {em.get('error', 'empty body')}")
                         prog.progress((i + 1) / len(targets))
                         continue
 
@@ -516,6 +517,7 @@ if "scan_results" in st.session_state:
                         save_status(seo.url, "📨 Contacted")
                     else:
                         errors += 1
+                        st.warning(f"❌ `{seo.url}` → {result['error']}")
 
                     prog.progress((i + 1) / len(targets))
 
