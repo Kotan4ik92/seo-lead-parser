@@ -19,8 +19,9 @@ import config
 # ── Persistent storage ────────────────────────────────────────────────────────
 DATA_DIR      = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
-STATUSES_FILE = DATA_DIR / "statuses.json"
-HISTORY_FILE  = DATA_DIR / "history.json"
+STATUSES_FILE   = DATA_DIR / "statuses.json"
+HISTORY_FILE    = DATA_DIR / "history.json"
+SENT_EMAILS_FILE = DATA_DIR / "sent_emails.json"
 
 STATUS_OPTIONS = ["🟡 New", "📨 Contacted", "✅ Interested", "❌ Skip"]
 
@@ -40,6 +41,18 @@ def load_history() -> list:
         return json.loads(HISTORY_FILE.read_text(encoding="utf-8")) if HISTORY_FILE.exists() else []
     except Exception:
         return []
+
+def load_sent_emails() -> set:
+    try:
+        data = json.loads(SENT_EMAILS_FILE.read_text(encoding="utf-8")) if SENT_EMAILS_FILE.exists() else []
+        return set(data)
+    except Exception:
+        return set()
+
+def save_sent_email(email: str):
+    sent = load_sent_emails()
+    sent.add(email.lower().strip())
+    SENT_EMAILS_FILE.write_text(json.dumps(sorted(sent), ensure_ascii=False, indent=2), encoding="utf-8")
 
 def append_history(query: str, geo: str, niche: str, total: int, hot: int, fire: int, warm: int):
     h = load_history()
@@ -458,6 +471,7 @@ if "scan_results" in st.session_state:
             saved_q   = st.session_state.get("scan_query", "")
             statuses  = load_statuses()
 
+            sent_emails = load_sent_emails()
             targets = [
                 (seo, sc, t) for seo, sc, t in all_res
                 if seo.reachable and sc >= 20
@@ -481,6 +495,12 @@ if "scan_results" in st.session_state:
                     emails   = contacts.get("emails", [])
 
                     if not emails:
+                        no_contact += 1
+                        prog.progress((i + 1) / len(targets))
+                        continue
+
+                    # Skip if this email was already contacted before
+                    if emails[0].lower().strip() in sent_emails:
                         no_contact += 1
                         prog.progress((i + 1) / len(targets))
                         continue
@@ -515,6 +535,8 @@ if "scan_results" in st.session_state:
                     if result["ok"]:
                         sent_ok += 1
                         save_status(seo.url, "📨 Contacted")
+                        save_sent_email(emails[0])
+                        sent_emails.add(emails[0].lower().strip())
                     else:
                         errors += 1
                         st.warning(f"❌ `{seo.url}` → {result['error']}")
