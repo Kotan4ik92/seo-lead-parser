@@ -106,6 +106,12 @@ SOCIAL PROOF (use naturally, don't force it):
 - You MAY mention that SEOBRO helped a client generate $1M+ in additional organic revenue — but only if it fits naturally and the business is the right size to relate to that scale
 - Keep it brief — one casual mention, not a sales pitch
 
+EXCLUSIVITY TONE (important — builds trust):
+- Subtly convey that SEOBRO is selective — they don't take every project, they choose clients they genuinely see potential in
+- This is NOT a mass blast — frame it as: "we looked at your site specifically and think there's real opportunity here"
+- One natural line that signals selectivity, e.g. "we're quite selective about who we work with" or "we only take on projects where we see clear growth potential" — keep it brief and genuine, not arrogant
+- This makes the recipient feel chosen, not spammed
+
 CONTENT RULES:
 - Mention 2 SPECIFIC issues by name (e.g. "no meta description", "H1 is missing")
 - Max 110 words total for the body
