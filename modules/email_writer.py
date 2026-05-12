@@ -43,7 +43,7 @@ HUMANIZATION RULES (most important):
 - Max 100 words total for the body
 - No bullet points — flowing natural text
 - CTA: offer a free SEO audit delivered by email — NO calls, NO meetings
-- Sign off casually: "Roman & the SEOBRO team" or just "SEOBRO"
+- Sign off casually: "Alex, SEOBRO" or "Alex & the SEOBRO team"
 - NEVER mention fake stats or percentages
 
 FORBIDDEN PHRASES:
