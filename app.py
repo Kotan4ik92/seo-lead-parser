@@ -19,9 +19,10 @@ import config
 # ── Persistent storage ────────────────────────────────────────────────────────
 DATA_DIR      = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
-STATUSES_FILE   = DATA_DIR / "statuses.json"
-HISTORY_FILE    = DATA_DIR / "history.json"
+STATUSES_FILE    = DATA_DIR / "statuses.json"
+HISTORY_FILE     = DATA_DIR / "history.json"
 SENT_EMAILS_FILE = DATA_DIR / "sent_emails.json"
+SEND_LOG_FILE    = DATA_DIR / "send_log.json"
 
 STATUS_OPTIONS = ["🟡 New", "📨 Contacted", "✅ Interested", "❌ Skip"]
 
@@ -41,6 +42,23 @@ def load_history() -> list:
         return json.loads(HISTORY_FILE.read_text(encoding="utf-8")) if HISTORY_FILE.exists() else []
     except Exception:
         return []
+
+def get_today_send_count() -> int:
+    today = datetime.date.today().isoformat()
+    try:
+        log = json.loads(SEND_LOG_FILE.read_text(encoding="utf-8")) if SEND_LOG_FILE.exists() else {}
+        return log.get(today, 0)
+    except Exception:
+        return 0
+
+def increment_send_count():
+    today = datetime.date.today().isoformat()
+    try:
+        log = json.loads(SEND_LOG_FILE.read_text(encoding="utf-8")) if SEND_LOG_FILE.exists() else {}
+    except Exception:
+        log = {}
+    log[today] = log.get(today, 0) + 1
+    SEND_LOG_FILE.write_text(json.dumps(log, ensure_ascii=False, indent=2), encoding="utf-8")
 
 def load_sent_emails() -> set:
     try:
@@ -327,6 +345,13 @@ with st.sidebar:
                            help="Show only sites with at least N technical problems")
 
     st.divider()
+    st.caption("**Email sending**")
+    daily_limit = st.slider("Daily send limit", 5, 50, 25, step=5,
+                            help="Max emails per day to protect seobro.com reputation")
+    today_count = get_today_send_count()
+    st.caption(f"Sent today: **{today_count} / {daily_limit}**")
+
+    st.divider()
     st.markdown("Made with ❤️ for SEO agencies")
 
 # ── Main area ─────────────────────────────────────────────────────────────────
@@ -499,7 +524,15 @@ if "scan_results" in st.session_state:
         st.markdown("**📤 Auto-send cold emails**")
         st.caption("Finds contacts → generates email → sends to all warm/hot leads (score 20+) with status 🟡 New")
 
-        if st.button("📤 Send to all hot/warm leads", type="primary", use_container_width=False):
+        today_sent = get_today_send_count()
+        remaining  = max(0, daily_limit - today_sent)
+
+        if remaining == 0:
+            st.warning(f"⛔ Daily limit reached ({daily_limit} emails). Resets tomorrow.")
+        else:
+            st.caption(f"📬 Sent today: **{today_sent} / {daily_limit}** — {remaining} remaining")
+
+        if remaining > 0 and st.button("📤 Send to all hot/warm leads", type="primary", use_container_width=False):
             all_res   = st.session_state["scan_results"]
             saved_q   = st.session_state.get("scan_query", "")
             statuses  = load_statuses()
@@ -509,12 +542,12 @@ if "scan_results" in st.session_state:
                 (seo, sc, t) for seo, sc, t in all_res
                 if seo.reachable and sc >= 20
                 and statuses.get(seo.url, "🟡 New") == "🟡 New"
-            ]
+            ][:remaining]  # cap at daily quota
 
             if not targets:
                 st.info("No new warm/hot leads to send to — all already contacted or score < 20.")
             else:
-                st.info(f"Found **{len(targets)}** leads to process. Starting…")
+                st.info(f"Found **{len(targets)}** leads to process ({remaining} sends remaining today). Starting…")
                 prog   = st.progress(0)
                 log    = st.empty()
 
@@ -569,11 +602,15 @@ if "scan_results" in st.session_state:
                         sent_ok += 1
                         save_status(seo.url, "📨 Contacted")
                         save_sent_email(emails[0])
+                        increment_send_count()
                         sent_emails.add(emails[0].lower().strip())
                         # Store contact email for export
                         if "contacts_emails" not in st.session_state:
                             st.session_state["contacts_emails"] = {}
                         st.session_state["contacts_emails"][seo.url] = emails[0]
+                        # Delay between sends to avoid spam filters
+                        if i < len(targets) - 1:
+                            time.sleep(random.uniform(4, 8))
                     else:
                         errors += 1
                         st.warning(f"❌ `{seo.url}` → {result['error']}")
