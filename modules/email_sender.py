@@ -6,8 +6,8 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-ZOHO_SMTP = "smtp.zoho.eu"
-ZOHO_PORT = 587
+ZOHO_SMTP = "smtppro.zoho.eu"
+ZOHO_PORT = 465
 
 
 def send_cold_email(
@@ -30,9 +30,7 @@ def send_cold_email(
 
         msg.attach(MIMEText(body, "plain", "utf-8"))
 
-        with smtplib.SMTP(ZOHO_SMTP, ZOHO_PORT) as server:
-            server.ehlo()
-            server.starttls()
+        with smtplib.SMTP_SSL(ZOHO_SMTP, ZOHO_PORT) as server:
             server.login(from_email, app_password)
             server.sendmail(from_email, to_email, msg.as_string())
 
