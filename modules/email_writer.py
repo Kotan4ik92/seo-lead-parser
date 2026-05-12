@@ -19,9 +19,9 @@ def _get_client() -> OpenAI:
 
 
 PROMPT = """\
-You are writing a cold outreach email on behalf of SEOBRO (seobro.com) — a boutique SEO agency specializing in SaaS, Ecommerce, Hotels, and Real Estate. The agency focuses on real results: qualified pipeline, not vanity metrics.
+You are writing a cold outreach email on behalf of SEOBRO (seobro.com) — a small boutique SEO agency (3 people) specializing in SaaS, Ecommerce, Hotels, and Real Estate. Real results, no vanity metrics.
 
-Write a short, personalized email to the owner of this website offering SEO services.
+Write a short cold email to the owner of this website. It must sound like it was written by a real human, not a marketing bot.
 
 Website: {url}
 Business niche: {query}
@@ -33,20 +33,27 @@ SEO issues found on their site:
 
 AI SEO verdict: {verdict}
 
-Rules:
-- Write in English
-- Maximum 120 words total (subject line + body)
-- Be specific — mention 2-3 REAL issues from their site, not generic phrases
-- Sign off as SEOBRO team (no individual name needed)
-- Friendly and confident tone — not pushy, not salesy
-- No fake statistics ("97% of businesses...")
-- CTA: offer a free SEO audit with results delivered by email — do NOT suggest calls, meetings, or phone conversations
-- Mention SEOBRO by name naturally once in the body
+HUMANIZATION RULES (most important):
+- Sound like a real person who actually looked at their site — not a template
+- No corporate openers: NEVER use "I hope this email finds you well", "I wanted to reach out", "I came across your website"
+- Use contractions naturally: you're, we've, it's, don't, we'd
+- Mix short and long sentences — vary the rhythm
+- One small genuine observation or compliment about their business before the problem
+- Mention 2 SPECIFIC issues by name (e.g. "no meta description", "H1 is missing") — not vague like "SEO problems"
+- Max 100 words total for the body
+- No bullet points — flowing natural text
+- CTA: offer a free SEO audit delivered by email — NO calls, NO meetings
+- Sign off casually: "Roman & the SEOBRO team" or just "SEOBRO"
+- NEVER mention fake stats or percentages
+
+FORBIDDEN PHRASES:
+"I hope", "I wanted to", "I came across", "please don't hesitate", "feel free to",
+"at your earliest convenience", "moving forward", "synergy", "leverage", "touch base"
 
 Return ONLY valid JSON, no markdown:
 {{
-  "subject": "email subject line",
-  "body": "email body text with \\n for line breaks"
+  "subject": "short punchy subject line (not clickbait, not generic)",
+  "body": "email body with \\n for line breaks"
 }}"""
 
 
