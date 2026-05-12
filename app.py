@@ -64,6 +64,10 @@ try:
         _GSHEET_SA = dict(_st_pre.secrets["gcp_service_account"])
     if "GSHEET_ID" in _st_pre.secrets:
         _GSHEET_ID = _st_pre.secrets["GSHEET_ID"]
+    if "ZOHO_EMAIL" in _st_pre.secrets:
+        config.ZOHO_EMAIL = _st_pre.secrets["ZOHO_EMAIL"]
+    if "ZOHO_APP_PASSWORD" in _st_pre.secrets:
+        config.ZOHO_APP_PASSWORD = _st_pre.secrets["ZOHO_APP_PASSWORD"]
 except Exception:
     pass
 
@@ -74,6 +78,7 @@ from modules.contact_finder  import find_contacts
 from modules.email_writer    import generate_email
 from modules.sheets_writer   import write_to_excel
 from modules.gsheets_writer  import push_to_gsheets
+from modules.email_sender    import send_cold_email
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -222,9 +227,11 @@ with st.sidebar:
     serper_ok  = "✅" if serper_key else "❌ not set"
     openai_ok  = "✅" if openai_key else "❌ not set"
     gsheet_ok  = "✅" if (_GSHEET_SA and _GSHEET_ID) else "❌ not set"
+    zoho_ok    = "✅" if (config.ZOHO_EMAIL and config.ZOHO_APP_PASSWORD) else "❌ not set"
     st.caption(f"Serper.dev API: {serper_ok}")
     st.caption(f"OpenAI API: {openai_ok}")
     st.caption(f"Google Sheets: {gsheet_ok}")
+    st.caption(f"Zoho Mail: {zoho_ok}")
     if not serper_key or not openai_key:
         st.warning("API keys missing. Set them in Streamlit Cloud → App Settings → Secrets.", icon="🔑")
 
@@ -439,6 +446,89 @@ if "scan_results" in st.session_state:
                     st.success(f"✅ Done! [Open Google Sheets]({sheet_url})", icon="📊")
                 except Exception as e:
                     st.error(f"Google Sheets error: {e}")
+
+    # ── Auto-send emails ───────────────────────────────────────────────────────
+    if config.ZOHO_EMAIL and config.ZOHO_APP_PASSWORD and "scan_results" in st.session_state:
+        st.divider()
+        st.markdown("**📤 Auto-send cold emails**")
+        st.caption("Finds contacts → generates email → sends to all warm/hot leads (score 20+) with status 🟡 New")
+
+        if st.button("📤 Send to all hot/warm leads", type="primary", use_container_width=False):
+            all_res   = st.session_state["scan_results"]
+            saved_q   = st.session_state.get("scan_query", "")
+            statuses  = load_statuses()
+
+            targets = [
+                (seo, sc, t) for seo, sc, t in all_res
+                if seo.reachable and sc >= 20
+                and statuses.get(seo.url, "🟡 New") == "🟡 New"
+            ]
+
+            if not targets:
+                st.info("No new warm/hot leads to send to — all already contacted or score < 20.")
+            else:
+                st.info(f"Found **{len(targets)}** leads to process. Starting…")
+                prog   = st.progress(0)
+                log    = st.empty()
+
+                sent_ok, no_contact, errors = 0, 0, 0
+
+                for i, (seo, sc, temp) in enumerate(targets):
+                    log.markdown(f"**[{i+1}/{len(targets)}]** `{seo.url}` — finding contacts…")
+
+                    # 1. Find contacts
+                    contacts = find_contacts(seo.url)
+                    emails   = contacts.get("emails", [])
+
+                    if not emails:
+                        no_contact += 1
+                        prog.progress((i + 1) / len(targets))
+                        continue
+
+                    # 2. Generate email
+                    log.markdown(f"**[{i+1}/{len(targets)}]** `{seo.url}` — writing email…")
+                    em = generate_email(
+                        url=seo.url,
+                        query=saved_q,
+                        issues=seo.issues,
+                        verdict=seo.ai.ai_verdict if seo.ai else "",
+                        owner=contacts.get("owner", ""),
+                        email=emails[0],
+                    )
+
+                    if em.get("error") or not em.get("body"):
+                        errors += 1
+                        prog.progress((i + 1) / len(targets))
+                        continue
+
+                    # 3. Send
+                    log.markdown(f"**[{i+1}/{len(targets)}]** `{seo.url}` — sending to {emails[0]}…")
+                    result = send_cold_email(
+                        to_email=emails[0],
+                        subject=em["subject"],
+                        body=em["body"],
+                        from_email=config.ZOHO_EMAIL,
+                        app_password=config.ZOHO_APP_PASSWORD,
+                    )
+
+                    if result["ok"]:
+                        sent_ok += 1
+                        save_status(seo.url, "📨 Contacted")
+                    else:
+                        errors += 1
+
+                    prog.progress((i + 1) / len(targets))
+
+                log.empty()
+                prog.empty()
+
+                st.success(
+                    f"✅ Done!  Sent: **{sent_ok}**  |  "
+                    f"No contact found: **{no_contact}**  |  "
+                    f"Errors: **{errors}**"
+                )
+                if sent_ok:
+                    st.rerun()
 
     st.divider()
     st.subheader(f"Results ({len(filtered)} leads)")

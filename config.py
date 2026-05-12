@@ -27,9 +27,11 @@ SEARCH_GEO    = "us"   # us / gb / ca / au / de / fr
 # or set via Streamlit Cloud secrets (Settings → Secrets):
 #   SERPER_API_KEY = "your_key"
 #   OPENAI_API_KEY = "your_key"
-SERPER_API_KEY = os.environ.get("SERPER_API_KEY", "")
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-OPENAI_MODEL   = "gpt-4.1-mini"
+SERPER_API_KEY   = os.environ.get("SERPER_API_KEY", "")
+OPENAI_API_KEY   = os.environ.get("OPENAI_API_KEY", "")
+OPENAI_MODEL     = "gpt-4.1-mini"
+ZOHO_EMAIL       = os.environ.get("ZOHO_EMAIL", "")
+ZOHO_APP_PASSWORD = os.environ.get("ZOHO_APP_PASSWORD", "")
 
 # --- Сканирование ---
 REQUEST_TIMEOUT      = 15
