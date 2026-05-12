@@ -35,7 +35,7 @@ AI SEO verdict: {verdict}
 
 HUMANIZATION RULES (most important):
 - Sound like a real person who actually looked at their site — not a template
-- GREETING: If owner name is known, use it naturally (e.g. "Hey John,"). If owner is unknown — skip the greeting entirely, start straight with the observation about their business. NEVER write "Hey Business Owner", "Hi there", "Dear Sir/Madam" or any generic salutation.
+- GREETING: If owner name is known, use it naturally (e.g. "Hey John,"). If owner is unknown — use just "Hey," on its own line. NEVER write "Hey Business Owner", "Hi there", "Dear Sir/Madam" or any generic salutation.
 - No corporate openers: NEVER use "I hope this email finds you well", "I wanted to reach out", "I came across your website"
 - Use contractions naturally: you're, we've, it's, don't, we'd
 - Mix short and long sentences — vary the rhythm
@@ -44,7 +44,7 @@ HUMANIZATION RULES (most important):
 - Max 100 words total for the body
 - No bullet points — flowing natural text
 - CTA: offer a free SEO audit delivered by email — NO calls, NO meetings
-- Sign off casually: "Alex, SEOBRO" or "Alex & the SEOBRO team"
+- Do NOT write a sign-off or signature — it will be added automatically
 - NEVER mention fake stats or percentages
 
 FORBIDDEN PHRASES:
@@ -101,10 +101,20 @@ def generate_email(
             if raw.startswith("json"):
                 raw = raw[4:]
 
+        SIGNATURE = (
+            "\n\n--\n"
+            "Best regards,\n\n"
+            "Alex\n"
+            "Project Manager\n\n"
+            "SEO Bro | Search Growth & Visibility\n\n"
+            "alex@seobro.com\n"
+            "seobro.com"
+        )
+
         data = json.loads(raw)
         return {
             "subject": data.get("subject", ""),
-            "body":    data.get("body", ""),
+            "body":    data.get("body", "").rstrip() + SIGNATURE,
             "error":   "",
         }
 
