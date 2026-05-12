@@ -610,7 +610,7 @@ if "scan_results" in st.session_state:
                         st.session_state["contacts_emails"][seo.url] = emails[0]
                         # Delay between sends to avoid spam filters
                         if i < len(targets) - 1:
-                            time.sleep(random.uniform(4, 8))
+                            time.sleep(random.uniform(40, 60))
                     else:
                         errors += 1
                         st.warning(f"❌ `{seo.url}` → {result['error']}")
