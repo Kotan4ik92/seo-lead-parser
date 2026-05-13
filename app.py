@@ -397,11 +397,11 @@ st.markdown("Find websites with poor SEO → turn them into warm leads.")
 # ── Follow-up reminders (always visible) ──────────────────────────────────────
 followup_due = get_followup_due(days=7)
 if followup_due:
+    _all_lead_data = load_lead_data()
     with st.expander(f"⏰ Follow-up needed — {len(followup_due)} leads waiting 7+ days", expanded=True):
         st.caption("These leads have been in **📨 Contacted** status for 7+ days — time to send a follow-up.")
         for fu_url, fu_days in sorted(followup_due, key=lambda x: -x[1]):
-            lead_data_entry = load_lead_data().get(fu_url, {})
-            note = lead_data_entry.get("note", "")
+            note = _all_lead_data.get(fu_url, {}).get("note", "")
             note_str = f" · 📝 *{note}*" if note else ""
             st.markdown(f"- [{fu_url}]({fu_url}) — **{fu_days} days** since last contact{note_str}")
 
@@ -411,7 +411,8 @@ tmpl_label_col.caption("Quick templates (AI picks trending niches for today):")
 if tmpl_refresh_col.button("🔄", help="Regenerate templates", use_container_width=True):
     get_ai_templates.clear()
 
-TEMPLATES = get_ai_templates(config.OPENAI_API_KEY, niche, geo_label, lang_label)
+with st.spinner("Loading templates…"):
+    TEMPLATES = get_ai_templates(config.OPENAI_API_KEY, niche, geo_label, lang_label)
 
 tmpl_cols = st.columns(6)
 for i, tmpl in enumerate(TEMPLATES):
@@ -713,14 +714,15 @@ if "scan_results" in st.session_state:
     st.divider()
     st.subheader(f"Results ({len(filtered)} leads)")
 
+    _lead_data_cache = load_lead_data()
+
     for idx, (seo, lead_score, temp) in enumerate(filtered):
         if not seo.reachable:
             continue
 
         statuses     = load_statuses()
         lead_status  = statuses.get(seo.url, "🟡 New")
-        lead_data     = load_lead_data()
-        lead_entry    = lead_data.get(seo.url, {})
+        lead_entry    = _lead_data_cache.get(seo.url, {})
         contact_count = lead_entry.get("contact_count", 0)
         contact_badge = f"  📨 ×{contact_count}" if contact_count > 0 else ""
 
