@@ -400,10 +400,19 @@ if "scan_results" in st.session_state:
     reachable_urls = [seo.url for seo, _, _ in filtered if seo.reachable]
     if reachable_urls:
         with st.expander("☑️ Bulk actions", expanded=False):
-            bulk_cols = st.columns([3, 1, 1, 1, 1])
-            bulk_cols[0].caption("Change status for **all visible** leads at once:")
-            for bi, opt in enumerate(STATUS_OPTIONS):
-                if bulk_cols[bi + 1].button(opt, key=f"bulk_{bi}", use_container_width=True):
+            st.caption("Change status for **all visible** leads at once:")
+            bulk_row1 = STATUS_OPTIONS[:4]
+            bulk_row2 = STATUS_OPTIONS[4:]
+            br1_cols = st.columns(len(bulk_row1))
+            for bi, opt in enumerate(bulk_row1):
+                if br1_cols[bi].button(opt, key=f"bulk_{bi}", use_container_width=True):
+                    for url in reachable_urls:
+                        save_status(url, opt)
+                    st.success(f"Updated {len(reachable_urls)} leads → {opt}")
+                    st.rerun()
+            br2_cols = st.columns(len(bulk_row2))
+            for bi, opt in enumerate(bulk_row2):
+                if br2_cols[bi].button(opt, key=f"bulk_{bi + 4}", use_container_width=True):
                     for url in reachable_urls:
                         save_status(url, opt)
                     st.success(f"Updated {len(reachable_urls)} leads → {opt}")
