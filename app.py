@@ -391,6 +391,19 @@ if "scan_results" in st.session_state:
     st.divider()
     st.subheader(f"Results ({len(filtered)} leads)")
 
+    # ── Bulk actions ──────────────────────────────────────────────────────────
+    reachable_urls = [seo.url for seo, _, _ in filtered if seo.reachable]
+    if reachable_urls:
+        with st.expander("☑️ Bulk actions", expanded=False):
+            bulk_cols = st.columns([3, 1, 1, 1, 1])
+            bulk_cols[0].caption("Change status for **all visible** leads at once:")
+            for bi, opt in enumerate(STATUS_OPTIONS):
+                if bulk_cols[bi + 1].button(opt, key=f"bulk_{bi}", use_container_width=True):
+                    for url in reachable_urls:
+                        save_status(url, opt)
+                    st.success(f"Updated {len(reachable_urls)} leads → {opt}")
+                    st.rerun()
+
     _lead_data_cache = get_all_lead_data()
     _statuses_cache  = get_all_statuses()
 
