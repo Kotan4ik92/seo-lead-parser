@@ -1,6 +1,7 @@
 """
 Извлечение контактов с сайта: email, телефон, имя владельца, LinkedIn.
 Проверяем /contact, /about, /team и главную страницу.
+Если email не найден — fallback через Hunter.io Domain Search API.
 """
 
 import re
@@ -10,6 +11,7 @@ import requests
 from bs4 import BeautifulSoup
 
 import config
+from modules.database import record_api_call
 
 CONTACT_PATHS = ["/contact", "/contact-us", "/about", "/about-us", "/team", "/our-team", "/"]
 
@@ -95,6 +97,28 @@ def _extract_from_html(html: str, base_url: str) -> dict:
     }
 
 
+def _hunter_lookup(domain: str) -> list[str]:
+    """Hunter.io Domain Search — returns up to 3 verified emails for the domain."""
+    if not config.HUNTER_API_KEY:
+        return []
+    try:
+        resp = requests.get(
+            "https://api.hunter.io/v2/domain-search",
+            params={"domain": domain, "api_key": config.HUNTER_API_KEY, "limit": 5},
+            timeout=10,
+        )
+        record_api_call("hunter")
+        if resp.status_code != 200:
+            return []
+        data = resp.json().get("data", {})
+        emails_data = data.get("emails", [])
+        # Sort by confidence descending, take verified or highest confidence
+        emails_data.sort(key=lambda x: x.get("confidence", 0), reverse=True)
+        return [e["value"] for e in emails_data if e.get("value")][:3]
+    except Exception:
+        return []
+
+
 def find_contacts(base_url: str) -> dict:
     """Возвращает словарь с контактами сайта."""
     result = {"emails": [], "phones": [], "linkedin": "", "facebook": "", "instagram": "", "twitter": "", "owner": ""}
@@ -128,10 +152,15 @@ def find_contacts(base_url: str) -> dict:
 
     # Фильтруем email по домену сайта (приоритет)
     site_domain = urlparse(base_url).netloc.replace("www.", "")
-    site_emails = [e for e in all_emails if site_domain in e]
+    site_emails  = [e for e in all_emails if site_domain in e]
     other_emails = [e for e in all_emails if site_domain not in e]
+    found_emails = (site_emails + other_emails)[:3]
 
-    result["emails"]    = (site_emails + other_emails)[:3]
+    # Fallback: Hunter.io если email не нашли на сайте
+    if not found_emails and config.HUNTER_API_KEY:
+        found_emails = _hunter_lookup(site_domain)
+
+    result["emails"]    = found_emails
     result["phones"]    = list(all_phones)[:2]
     result["linkedin"]  = linkedin
     result["facebook"]  = facebook

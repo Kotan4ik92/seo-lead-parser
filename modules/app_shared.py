@@ -29,6 +29,8 @@ try:
         config.ZOHO_EMAIL = st.secrets["ZOHO_EMAIL"]
     if "ZOHO_APP_PASSWORD" in st.secrets:
         config.ZOHO_APP_PASSWORD = st.secrets["ZOHO_APP_PASSWORD"]
+    if "HUNTER_API_KEY" in st.secrets:
+        config.HUNTER_API_KEY = st.secrets["HUNTER_API_KEY"]
     if "APP_PASSWORD" in st.secrets:
         APP_PASSWORD = st.secrets["APP_PASSWORD"]
 except Exception:
@@ -155,17 +157,24 @@ def render_sidebar(show_lead_filters: bool = True, show_email_settings: bool = T
     with st.sidebar:
         st.title("⚙️ Settings")
 
-        serper_ok = "✅" if config.SERPER_API_KEY else "❌ not set"
-        openai_ok = "✅" if config.OPENAI_API_KEY else "❌ not set"
-        gsheet_ok = "✅" if (GSHEET_SA and GSHEET_ID) else "❌ not set"
-        zoho_ok   = "✅" if (config.ZOHO_EMAIL and config.ZOHO_APP_PASSWORD) else "❌ not set"
+        serper_ok  = "✅" if config.SERPER_API_KEY else "❌ not set"
+        openai_ok  = "✅" if config.OPENAI_API_KEY else "❌ not set"
+        gsheet_ok  = "✅" if (GSHEET_SA and GSHEET_ID) else "❌ not set"
+        zoho_ok    = "✅" if (config.ZOHO_EMAIL and config.ZOHO_APP_PASSWORD) else "❌ not set"
+        hunter_ok  = "✅" if config.HUNTER_API_KEY else "—"
 
         serper_used  = get_api_usage_this_month("serper")
+        hunter_used  = get_api_usage_this_month("hunter")
         serper_limit = 2500
+        hunter_limit = 25
         serper_pct   = serper_used / serper_limit
+        hunter_pct   = hunter_used / hunter_limit
         serper_color = "🟢" if serper_pct < 0.7 else ("🟡" if serper_pct < 0.9 else "🔴")
-        st.caption(f"Serper.dev: {serper_ok}  {serper_color} {serper_used}/{serper_limit} в месяц")
+        hunter_color = "🟢" if hunter_pct < 0.7 else ("🟡" if hunter_pct < 0.9 else "🔴")
+
+        st.caption(f"Serper.dev: {serper_ok} {serper_color} {serper_used}/{serper_limit} в месяц")
         st.caption(f"OpenAI API: {openai_ok}")
+        st.caption(f"Hunter.io: {hunter_ok}" + (f" {hunter_color} {hunter_used}/{hunter_limit} в месяц" if config.HUNTER_API_KEY else ""))
         st.caption(f"Google Sheets: {gsheet_ok}")
         st.caption(f"Zoho Mail: {zoho_ok}")
         if not config.SERPER_API_KEY or not config.OPENAI_API_KEY:
