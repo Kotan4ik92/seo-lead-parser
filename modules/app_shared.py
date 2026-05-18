@@ -31,6 +31,10 @@ try:
         config.ZOHO_APP_PASSWORD = st.secrets["ZOHO_APP_PASSWORD"]
     if "HUNTER_API_KEY" in st.secrets:
         config.HUNTER_API_KEY = st.secrets["HUNTER_API_KEY"]
+    if "TELEGRAM_BOT_TOKEN" in st.secrets:
+        config.TELEGRAM_BOT_TOKEN = st.secrets["TELEGRAM_BOT_TOKEN"]
+    if "TELEGRAM_CHAT_ID" in st.secrets:
+        config.TELEGRAM_CHAT_ID = st.secrets["TELEGRAM_CHAT_ID"]
     if "APP_PASSWORD" in st.secrets:
         APP_PASSWORD = st.secrets["APP_PASSWORD"]
 except Exception:
@@ -38,7 +42,7 @@ except Exception:
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
-STATUS_OPTIONS = ["🟡 New", "📨 Contacted", "✅ Interested", "❌ Skip"]
+STATUS_OPTIONS = ["🟡 New", "📨 Contacted", "✅ Interested", "🤝 In Negotiation", "🏆 Won", "💀 Lost", "❌ Skip"]
 
 GEO_OPTIONS = {
     "USA":         "us",
@@ -157,11 +161,12 @@ def render_sidebar(show_lead_filters: bool = True, show_email_settings: bool = T
     with st.sidebar:
         st.title("⚙️ Settings")
 
-        serper_ok  = "✅" if config.SERPER_API_KEY else "❌ not set"
-        openai_ok  = "✅" if config.OPENAI_API_KEY else "❌ not set"
-        gsheet_ok  = "✅" if (GSHEET_SA and GSHEET_ID) else "❌ not set"
-        zoho_ok    = "✅" if (config.ZOHO_EMAIL and config.ZOHO_APP_PASSWORD) else "❌ not set"
-        hunter_ok  = "✅" if config.HUNTER_API_KEY else "—"
+        serper_ok   = "✅" if config.SERPER_API_KEY else "❌ not set"
+        openai_ok   = "✅" if config.OPENAI_API_KEY else "❌ not set"
+        gsheet_ok   = "✅" if (GSHEET_SA and GSHEET_ID) else "❌ not set"
+        zoho_ok     = "✅" if (config.ZOHO_EMAIL and config.ZOHO_APP_PASSWORD) else "❌ not set"
+        hunter_ok   = "✅" if config.HUNTER_API_KEY else "—"
+        telegram_ok = "✅" if (config.TELEGRAM_BOT_TOKEN and config.TELEGRAM_CHAT_ID) else "—"
 
         serper_used  = get_api_usage_this_month("serper")
         hunter_used  = get_api_usage_this_month("hunter")
@@ -175,6 +180,7 @@ def render_sidebar(show_lead_filters: bool = True, show_email_settings: bool = T
         st.caption(f"Serper.dev: {serper_ok} {serper_color} {serper_used}/{serper_limit} в месяц")
         st.caption(f"OpenAI API: {openai_ok}")
         st.caption(f"Hunter.io: {hunter_ok}" + (f" {hunter_color} {hunter_used}/{hunter_limit} в месяц" if config.HUNTER_API_KEY else ""))
+        st.caption(f"Telegram: {telegram_ok}")
         st.caption(f"Google Sheets: {gsheet_ok}")
         st.caption(f"Zoho Mail: {zoho_ok}")
         if not config.SERPER_API_KEY or not config.OPENAI_API_KEY:

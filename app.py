@@ -25,6 +25,7 @@ from modules.database import (
     get_today_send_count, increment_send_count,
     record_email_sent,
 )
+from modules.notifier       import notify_status_change
 from modules.serp_scraper   import scrape_serp
 from modules.seo_scanner    import scan
 from modules.scorer         import score
@@ -100,6 +101,10 @@ Return ONLY a JSON array of 6 strings, no markdown:
     except Exception:
         pass
     return FALLBACK_TEMPLATES
+
+
+def _notify_status_change(url: str, status: str):
+    notify_status_change(url, status)
 
 
 # ── Main area ─────────────────────────────────────────────────────────────────
@@ -443,14 +448,23 @@ if "scan_results" in st.session_state:
         )
 
         with st.expander(header, expanded=(idx < 3)):
-            status_cols = st.columns(len(STATUS_OPTIONS) + 1)
-            status_cols[0].markdown("**Status:**")
-            for si, opt in enumerate(STATUS_OPTIONS):
-                if status_cols[si + 1].button(
-                    opt, key=f"st_{idx}_{si}",
-                    type="primary" if lead_status == opt else "secondary",
-                ):
+            st.markdown("**Status:**")
+            row1, row2 = STATUS_OPTIONS[:4], STATUS_OPTIONS[4:]
+            r1_cols = st.columns(len(row1))
+            for si, opt in enumerate(row1):
+                if r1_cols[si].button(opt, key=f"st_{idx}_{si}",
+                                      type="primary" if lead_status == opt else "secondary",
+                                      use_container_width=True):
                     save_status(seo.url, opt)
+                    _notify_status_change(seo.url, opt)
+                    st.rerun()
+            r2_cols = st.columns(len(row2))
+            for si, opt in enumerate(row2):
+                if r2_cols[si].button(opt, key=f"st_{idx}_{si + 4}",
+                                      type="primary" if lead_status == opt else "secondary",
+                                      use_container_width=True):
+                    save_status(seo.url, opt)
+                    _notify_status_change(seo.url, opt)
                     st.rerun()
 
             if not seo.niche_match and niche != "All niches":

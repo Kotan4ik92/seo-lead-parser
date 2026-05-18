@@ -32,7 +32,9 @@ OPENAI_API_KEY    = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL      = "gpt-4.1-mini"
 ZOHO_EMAIL        = os.environ.get("ZOHO_EMAIL", "")
 ZOHO_APP_PASSWORD = os.environ.get("ZOHO_APP_PASSWORD", "")
-HUNTER_API_KEY    = os.environ.get("HUNTER_API_KEY", "")
+HUNTER_API_KEY      = os.environ.get("HUNTER_API_KEY", "")
+TELEGRAM_BOT_TOKEN  = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID    = os.environ.get("TELEGRAM_CHAT_ID", "")
 
 # --- Сканирование ---
 REQUEST_TIMEOUT      = 15
