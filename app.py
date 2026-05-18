@@ -1,5 +1,5 @@
 """
-SEO Lead Parser — Streamlit Web App
+SEO Lead Parser — main page (Search & Results).
 Запуск локально : streamlit run app.py
 Деплой         : Streamlit Community Cloud (github.com → connect repo)
 """
@@ -13,142 +13,54 @@ import requests
 import streamlit as st
 
 import config
+from modules.app_shared import (
+    require_auth, render_sidebar,
+    GSHEET_SA, GSHEET_ID,
+    STATUS_OPTIONS, FALLBACK_TEMPLATES,
+)
 from modules.database import (
     get_all_statuses, save_status,
     get_all_lead_data, mark_contacted, save_note, get_followup_due,
-    get_history, append_history,
-    get_sent_emails, save_sent_email,
+    append_history, get_sent_emails, save_sent_email,
     get_today_send_count, increment_send_count,
-    record_email_sent, get_email_tracking_stats,
-    migrate_from_json,
+    record_email_sent,
+)
+from modules.serp_scraper   import scrape_serp
+from modules.seo_scanner    import scan
+from modules.scorer         import score
+from modules.contact_finder import find_contacts
+from modules.email_writer   import generate_email
+from modules.sheets_writer  import write_to_excel
+from modules.gsheets_writer import push_to_gsheets
+from modules.email_sender   import send_cold_email
+
+# ── Page config ───────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="SEO Lead Parser",
+    page_icon="🔍",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-# ── Migrate legacy JSON data once, then use SQLite ───────────────────────────
-migrate_from_json()
+require_auth()
+settings = render_sidebar()
 
-STATUS_OPTIONS = ["🟡 New", "📨 Contacted", "✅ Interested", "❌ Skip"]
-
-# On Streamlit Cloud, secrets are injected via st.secrets
-_GSHEET_SA:   dict | None = None   # service account JSON dict
-_GSHEET_ID:   str  = ""            # spreadsheet ID
-_APP_PASSWORD: str = ""            # access password
-
-try:
-    import streamlit as _st_pre
-    if "SERPER_API_KEY" in _st_pre.secrets:
-        config.SERPER_API_KEY = _st_pre.secrets["SERPER_API_KEY"]
-    if "OPENAI_API_KEY" in _st_pre.secrets:
-        config.OPENAI_API_KEY = _st_pre.secrets["OPENAI_API_KEY"]
-    if "gcp_service_account" in _st_pre.secrets:
-        _GSHEET_SA = dict(_st_pre.secrets["gcp_service_account"])
-    if "GSHEET_ID" in _st_pre.secrets:
-        _GSHEET_ID = _st_pre.secrets["GSHEET_ID"]
-    if "ZOHO_EMAIL" in _st_pre.secrets:
-        config.ZOHO_EMAIL = _st_pre.secrets["ZOHO_EMAIL"]
-    if "ZOHO_APP_PASSWORD" in _st_pre.secrets:
-        config.ZOHO_APP_PASSWORD = _st_pre.secrets["ZOHO_APP_PASSWORD"]
-    if "APP_PASSWORD" in _st_pre.secrets:
-        _APP_PASSWORD = _st_pre.secrets["APP_PASSWORD"]
-except Exception:
-    pass
-
-from modules.serp_scraper    import scrape_serp
-from modules.seo_scanner     import scan
-from modules.scorer          import score
-from modules.contact_finder  import find_contacts
-from modules.email_writer    import generate_email
-from modules.sheets_writer   import write_to_excel
-from modules.gsheets_writer  import push_to_gsheets
-from modules.email_sender    import send_cold_email
-
-# ── Constants ─────────────────────────────────────────────────────────────────
-
-GEO_OPTIONS = {
-    "USA":         "us",
-    "UK":          "gb",
-    "Canada":      "ca",
-    "Australia":   "au",
-    "New Zealand": "nz",
-    "Ireland":     "ie",
-    "Germany":     "de",
-    "France":      "fr",
-    "Netherlands": "nl",
-    "Belgium":     "be",
-    "Austria":     "at",
-    "Switzerland": "ch",
-    "Sweden":      "se",
-    "Norway":      "no",
-    "Denmark":     "dk",
-    "Spain":       "es",
-    "Italy":       "it",
-    "Poland":      "pl",
-    "Kazakhstan":  "kz",
-}
-
-LANG_OPTIONS = {
-    "Any":        "",
-    "English":    "lang_en",
-    "German":     "lang_de",
-    "French":     "lang_fr",
-    "Spanish":    "lang_es",
-    "Italian":    "lang_it",
-    "Dutch":      "lang_nl",
-    "Polish":     "lang_pl",
-    "Swedish":    "lang_sv",
-    "Norwegian":  "lang_no",
-    "Danish":     "lang_da",
-    "Portuguese": "lang_pt",
-}
-
-NICHE_OPTIONS  = [
-    "All niches", "Ecommerce", "HoReCa", "SaaS",
-    "Local Services", "Real Estate", "Healthcare",
-    "Beauty & Wellness", "Travel & Tourism", "Fitness & Sport",
-    "Education", "Legal & Finance",
-]
-NICHE_ICONS = {
-    "All niches":       "🌐",
-    "Ecommerce":        "🛒",
-    "HoReCa":          "🍽️",
-    "SaaS":            "💻",
-    "Local Services":  "🔧",
-    "Real Estate":     "🏠",
-    "Healthcare":      "🏥",
-    "Beauty & Wellness": "💅",
-    "Travel & Tourism": "✈️",
-    "Fitness & Sport": "🏋️",
-    "Education":       "🎓",
-    "Legal & Finance": "⚖️",
-}
-
-LANG_FLAGS = {
-    "Any":        "",
-    "English":    "gb",
-    "German":     "de",
-    "French":     "fr",
-    "Spanish":    "es",
-    "Italian":    "it",
-    "Dutch":      "nl",
-    "Polish":     "pl",
-    "Swedish":    "se",
-    "Norwegian":  "no",
-    "Danish":     "dk",
-    "Portuguese": "pt",
-}
-
-FALLBACK_TEMPLATES = [
-    "online furniture store USA",
-    "restaurant chain Chicago",
-    "CRM software small business",
-    "pet supplies store online UK",
-    "boutique hotel New York",
-    "accounting software SMB USA",
-]
+niche        = settings["niche"]
+geo          = settings["geo"]
+geo_label    = settings["geo_label"]
+lang_label   = settings["lang_label"]
+lang_restrict = settings["lang_restrict"]
+max_results  = settings["max_results"]
+max_pages    = settings["max_pages"]
+score_min    = settings["score_min"]
+score_max    = settings["score_max"]
+min_issues   = settings["min_issues"]
+daily_limit  = settings["daily_limit"]
 
 
+# ── AI template generator ─────────────────────────────────────────────────────
 @st.cache_data(ttl=86400, show_spinner=False)
 def get_ai_templates(openai_key: str, niche: str, geo: str, lang: str) -> list[str]:
-    """Генерирует 6 актуальных запросов через GPT. Кеш 24ч."""
     if not openai_key:
         return FALLBACK_TEMPLATES
     niche_hint = f"Focus on {niche} niche only." if niche != "All niches" else \
@@ -190,123 +102,11 @@ Return ONLY a JSON array of 6 strings, no markdown:
     return FALLBACK_TEMPLATES
 
 
-# ── Page config ───────────────────────────────────────────────────────────────
-st.set_page_config(
-    page_title="SEO Lead Parser",
-    page_icon="🔍",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
-# ── Password gate ─────────────────────────────────────────────────────────────
-if _APP_PASSWORD:
-    if not st.session_state.get("authenticated"):
-        st.markdown(
-            "<div style='max-width:360px; margin:80px auto 0'>",
-            unsafe_allow_html=True,
-        )
-        st.title("🔍 SEO Lead Parser")
-        st.caption("SEOBRO internal tool — team access only")
-        pwd = st.text_input("Password", type="password", placeholder="Enter password…")
-        if st.button("Sign in", type="primary", use_container_width=True):
-            if pwd == _APP_PASSWORD:
-                st.session_state["authenticated"] = True
-                st.rerun()
-            else:
-                st.error("Wrong password")
-        st.markdown("</div>", unsafe_allow_html=True)
-        st.stop()
-
-# ── Sidebar ───────────────────────────────────────────────────────────────────
-with st.sidebar:
-    st.title("⚙️ Settings")
-
-    # Keys are set via Streamlit Cloud Secrets — never shown in UI
-    serper_key = config.SERPER_API_KEY
-    openai_key = config.OPENAI_API_KEY
-    serper_ok  = "✅" if serper_key else "❌ not set"
-    openai_ok  = "✅" if openai_key else "❌ not set"
-    gsheet_ok  = "✅" if (_GSHEET_SA and _GSHEET_ID) else "❌ not set"
-    zoho_ok    = "✅" if (config.ZOHO_EMAIL and config.ZOHO_APP_PASSWORD) else "❌ not set"
-    st.caption(f"Serper.dev API: {serper_ok}")
-    st.caption(f"OpenAI API: {openai_ok}")
-    st.caption(f"Google Sheets: {gsheet_ok}")
-    st.caption(f"Zoho Mail: {zoho_ok}")
-    if not serper_key or not openai_key:
-        st.warning("API keys missing. Set them in Streamlit Cloud → App Settings → Secrets.", icon="🔑")
-
-    st.divider()
-    st.caption("**Search settings**")
-
-    niche_col, niche_icon_col = st.columns([4, 1])
-    with niche_col:
-        niche = st.selectbox("Niche", NICHE_OPTIONS, index=0)
-    with niche_icon_col:
-        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-        st.markdown(
-            f"<div style='font-size:26px; line-height:1'>{NICHE_ICONS[niche]}</div>",
-            unsafe_allow_html=True,
-        )
-
-    geo_col, flag_col = st.columns([4, 1])
-    with geo_col:
-        geo_label = st.selectbox("Market / Geo", list(GEO_OPTIONS.keys()), index=0)
-    geo = GEO_OPTIONS[geo_label]
-    with flag_col:
-        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-        st.markdown(
-            f'<img src="https://flagcdn.com/w80/{geo}.png" '
-            f'style="height:28px; border-radius:4px; box-shadow:0 1px 4px rgba(0,0,0,0.4)">',
-            unsafe_allow_html=True,
-        )
-
-    lang_col, lang_icon_col = st.columns([4, 1])
-    with lang_col:
-        lang_label = st.selectbox("Site language", list(LANG_OPTIONS.keys()), index=0)
-    lang_restrict = LANG_OPTIONS[lang_label]
-    with lang_icon_col:
-        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-        lang_flag = LANG_FLAGS.get(lang_label, "")
-        if lang_flag:
-            st.markdown(
-                f'<img src="https://flagcdn.com/w80/{lang_flag}.png" '
-                f'style="height:28px; border-radius:4px; box-shadow:0 1px 4px rgba(0,0,0,0.4)">',
-                unsafe_allow_html=True,
-            )
-        else:
-            st.markdown("<div style='font-size:26px; line-height:1'>🌐</div>",
-                        unsafe_allow_html=True)
-
-    max_results = st.slider("Max sites to scan", 5, 100, 30, step=5)
-    max_pages   = st.slider("Pages per site (sitemap)", 5, 20, 15, step=5)
-
-    st.divider()
-    st.caption("**Lead filters**")
-
-    score_min, score_max = st.slider(
-        "Score range",
-        min_value=0, max_value=100,
-        value=(0, 100), step=5,
-    )
-    min_issues = st.slider("Min technical issues", 0, 10, 0, step=1,
-                           help="Show only sites with at least N technical problems")
-
-    st.divider()
-    st.caption("**Email sending**")
-    daily_limit = st.slider("Daily send limit", 5, 50, 25, step=5,
-                            help="Max emails per day to protect seobro.com reputation")
-    today_count = get_today_send_count()
-
-    st.caption(f"Sent today: **{today_count} / {daily_limit}**")
-
-    st.divider()
-    st.markdown("Made with ❤️ for SEO agencies")
-
 # ── Main area ─────────────────────────────────────────────────────────────────
 st.title("🔍 SEO Lead Parser")
 st.markdown("Find websites with poor SEO → turn them into warm leads.")
 
-# ── Follow-up reminders (always visible) ──────────────────────────────────────
+# ── Follow-up reminders ───────────────────────────────────────────────────────
 followup_due = get_followup_due(days=7)
 if followup_due:
     _all_lead_data = get_all_lead_data()
@@ -317,7 +117,7 @@ if followup_due:
             note_str = f" · 📝 *{note}*" if note else ""
             st.markdown(f"- [{fu_url}]({fu_url}) — **{fu_days} days** since last contact{note_str}")
 
-# AI templates
+# ── AI query templates ────────────────────────────────────────────────────────
 tmpl_label_col, tmpl_refresh_col = st.columns([5, 1])
 tmpl_label_col.caption("Quick templates (AI picks trending niches for today):")
 if tmpl_refresh_col.button("🔄", help="Regenerate templates", use_container_width=True):
@@ -331,7 +131,7 @@ for i, tmpl in enumerate(TEMPLATES):
     if tmpl_cols[i].button(tmpl, key=f"tmpl_{i}", use_container_width=True):
         st.session_state["query_input"] = tmpl
 
-# Query input
+# ── Query input ───────────────────────────────────────────────────────────────
 col1, col2 = st.columns([4, 1])
 with col1:
     query = st.text_input(
@@ -347,7 +147,6 @@ st.divider()
 
 # ── Run pipeline ──────────────────────────────────────────────────────────────
 if run_btn and query:
-    # Clear previous results when starting a new scan
     for key in ["scan_results", "scan_query", "scan_excel"]:
         st.session_state.pop(key, None)
 
@@ -359,10 +158,8 @@ if run_btn and query:
     lang_tag  = f" | Lang: {lang_label}" if lang_restrict else ""
     st.info(f"Searching: **{query}** | Geo: {geo_label}{niche_tag}{lang_tag} | Up to {max_results} sites")
 
-    # Step 1: SERP
     with st.spinner("🌐 Fetching search results…"):
-        urls = scrape_serp(query, max_results=max_results,
-                           lang_restrict=lang_restrict, niche=niche)
+        urls = scrape_serp(query, max_results=max_results, lang_restrict=lang_restrict, niche=niche)
 
     if not urls:
         st.error("No URLs found. Check your Serper.dev API key or try a different query.")
@@ -370,13 +167,12 @@ if run_btn and query:
 
     st.success(f"Found **{len(urls)}** sites. Scanning SEO now…")
 
-    # Step 2: Scan each site
     progress_bar = st.progress(0)
     status_text  = st.empty()
 
     session = requests.Session()
     session.headers.update({
-        "User-Agent": random.choice(config.USER_AGENTS),
+        "User-Agent":    random.choice(config.USER_AGENTS),
         "Accept-Language": "en-US,en;q=0.9",
     })
 
@@ -394,36 +190,30 @@ if run_btn and query:
 
     all_results.sort(key=lambda x: x[1], reverse=True)
 
-    # Save to session state so button clicks don't lose results
     st.session_state["scan_results"] = all_results
     st.session_state["scan_query"]   = query
 
-    # Append to history
     _hot  = sum(1 for _, s, _ in all_results if s >= 70)
     _fire = sum(1 for _, s, _ in all_results if 45 <= s < 70)
     _warm = sum(1 for _, s, _ in all_results if 20 <= s < 45)
     append_history(query, geo_label, niche, len(all_results), _hot, _fire, _warm)
 
-    # Pre-generate Excel bytes once (contacts/statuses added at download time)
     safe_q   = query.replace(" ", "_").replace("/", "-")[:40]
-    filename = f"leads_{safe_q}.xlsx"
-    st.session_state["scan_excel_filename"] = filename
+    st.session_state["scan_excel_filename"] = f"leads_{safe_q}.xlsx"
 
 elif run_btn and not query:
     st.warning("Please enter a search query.")
 
-# ── Show results (persisted in session_state) ─────────────────────────────────
+# ── Results ───────────────────────────────────────────────────────────────────
 if "scan_results" in st.session_state:
     all_results = st.session_state["scan_results"]
     saved_query = st.session_state.get("scan_query", "")
 
     filtered = [
         (seo, s, t) for seo, s, t in all_results
-        if score_min <= s <= score_max
-        and seo.issues_count >= min_issues
+        if score_min <= s <= score_max and seo.issues_count >= min_issues
     ]
 
-    # Stats
     hot  = sum(1 for _, s, _ in filtered if s >= 70)
     fire = sum(1 for _, s, _ in filtered if 45 <= s < 70)
     warm = sum(1 for _, s, _ in filtered if 20 <= s < 45)
@@ -439,19 +229,17 @@ if "scan_results" in st.session_state:
 
     st.divider()
 
-    # Export buttons
+    # ── Export ────────────────────────────────────────────────────────────────
     export_col1, export_col2 = st.columns([2, 3])
 
     if "scan_excel_filename" in st.session_state:
         filename = st.session_state["scan_excel_filename"]
-        _contacts_map = st.session_state.get("contacts_emails", {})
-        _statuses_map = get_all_statuses()
         write_to_excel(
             st.session_state["scan_results"],
             st.session_state.get("scan_query", ""),
             filename=filename,
-            contacts=_contacts_map,
-            statuses=_statuses_map,
+            contacts=st.session_state.get("contacts_emails", {}),
+            statuses=get_all_statuses(),
         )
         with open(filename, "rb") as f:
             excel_bytes = f.read()
@@ -462,15 +250,15 @@ if "scan_results" in st.session_state:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
-    if _GSHEET_SA and _GSHEET_ID and "scan_results" in st.session_state:
+    if GSHEET_SA and GSHEET_ID:
         if export_col2.button("📊 Push to Google Sheets", use_container_width=True):
             with st.spinner("Pushing to Google Sheets…"):
                 try:
                     sheet_url = push_to_gsheets(
                         results=st.session_state["scan_results"],
                         query=st.session_state.get("scan_query", "scan"),
-                        sa_info=_GSHEET_SA,
-                        spreadsheet_id=_GSHEET_ID,
+                        sa_info=GSHEET_SA,
+                        spreadsheet_id=GSHEET_ID,
                         contacts=st.session_state.get("contacts_emails", {}),
                         statuses=get_all_statuses(),
                     )
@@ -478,8 +266,8 @@ if "scan_results" in st.session_state:
                 except Exception as e:
                     st.error(f"Google Sheets error: {e}")
 
-    # ── Auto-send emails ───────────────────────────────────────────────────────
-    if config.ZOHO_EMAIL and config.ZOHO_APP_PASSWORD and "scan_results" in st.session_state:
+    # ── Auto-send emails ──────────────────────────────────────────────────────
+    if config.ZOHO_EMAIL and config.ZOHO_APP_PASSWORD:
         st.divider()
         st.markdown("**📤 Auto-send cold emails**")
 
@@ -491,7 +279,6 @@ if "scan_results" in st.session_state:
         else:
             st.caption(f"📬 Sent today: **{today_sent} / {daily_limit}** — {remaining} remaining")
 
-        # ── Exclusion filters ──────────────────────────────────────────────────
         st.caption("**Skip leads with these flags:**")
         excl_cols = st.columns(4)
         excl_agency      = excl_cols[0].checkbox("🔄 Has SEO agency?", value=False)
@@ -499,11 +286,9 @@ if "scan_results" in st.session_state:
         excl_marketplace = excl_cols[2].checkbox("🏪 Marketplace?",    value=True)
         excl_offniche    = excl_cols[3].checkbox("⚠️ Off-niche?",      value=False)
 
-        # Preview count
-        all_res_preview  = st.session_state["scan_results"]
         statuses_preview = get_all_statuses()
         preview_targets  = [
-            (seo, sc, t) for seo, sc, t in all_res_preview
+            (seo, sc, t) for seo, sc, t in all_results
             if seo.reachable and sc >= 20
             and statuses_preview.get(seo.url, "🟡 New") == "🟡 New"
             and not (excl_agency      and seo.has_seo_agency)
@@ -511,61 +296,47 @@ if "scan_results" in st.session_state:
             and not (excl_marketplace and seo.is_marketplace)
             and not (excl_offniche    and not seo.niche_match)
         ]
-        st.caption(f"Will send to **{min(len(preview_targets), remaining)}** leads "
-                   f"({len(preview_targets)} match filters, {remaining} quota remaining)")
+        st.caption(
+            f"Will send to **{min(len(preview_targets), remaining)}** leads "
+            f"({len(preview_targets)} match filters, {remaining} quota remaining)"
+        )
 
-        if remaining > 0 and st.button("📤 Send emails", type="primary", use_container_width=False):
-            all_res     = st.session_state["scan_results"]
-            saved_q     = st.session_state.get("scan_query", "")
+        if remaining > 0 and st.button("📤 Send emails", type="primary"):
             statuses    = get_all_statuses()
             sent_emails = get_sent_emails()
             targets = [
-                (seo, sc, t) for seo, sc, t in all_res
+                (seo, sc, t) for seo, sc, t in all_results
                 if seo.reachable and sc >= 20
                 and statuses.get(seo.url, "🟡 New") == "🟡 New"
                 and not (excl_agency      and seo.has_seo_agency)
                 and not (excl_large       and seo.large_site)
                 and not (excl_marketplace and seo.is_marketplace)
                 and not (excl_offniche    and not seo.niche_match)
-            ][:remaining]  # cap at daily quota
+            ][:remaining]
 
             if not targets:
                 st.info("No leads match current filters.")
             else:
                 st.info(f"Sending to **{len(targets)}** leads. Starting…")
-                prog   = st.progress(0)
-                log    = st.empty()
-
+                prog = st.progress(0)
+                log  = st.empty()
                 sent_ok, no_contact, errors = 0, 0, 0
 
                 for i, (seo, sc, temp) in enumerate(targets):
                     log.markdown(f"**[{i+1}/{len(targets)}]** `{seo.url}` — finding contacts…")
-
-                    # 1. Find contacts
                     contacts = find_contacts(seo.url)
                     emails   = contacts.get("emails", [])
 
-                    if not emails:
+                    if not emails or emails[0].lower().strip() in sent_emails:
                         no_contact += 1
                         prog.progress((i + 1) / len(targets))
                         continue
 
-                    # Skip if this email was already contacted before
-                    if emails[0].lower().strip() in sent_emails:
-                        no_contact += 1
-                        prog.progress((i + 1) / len(targets))
-                        continue
-
-                    # 2. Generate email
                     log.markdown(f"**[{i+1}/{len(targets)}]** `{seo.url}` — writing email…")
                     em = generate_email(
-                        url=seo.url,
-                        query=saved_q,
-                        issues=seo.issues,
+                        url=seo.url, query=saved_query, issues=seo.issues,
                         verdict=seo.ai.ai_verdict if seo.ai else "",
-                        owner=contacts.get("owner", ""),
-                        email=emails[0],
-                        niche=niche,
+                        owner=contacts.get("owner", ""), email=emails[0], niche=niche,
                     )
 
                     if em.get("error") or not em.get("body"):
@@ -574,14 +345,10 @@ if "scan_results" in st.session_state:
                         prog.progress((i + 1) / len(targets))
                         continue
 
-                    # 3. Send
                     log.markdown(f"**[{i+1}/{len(targets)}]** `{seo.url}` — sending to {emails[0]}…")
                     result = send_cold_email(
-                        to_email=emails[0],
-                        subject=em["subject"],
-                        body=em["body"],
-                        from_email=config.ZOHO_EMAIL,
-                        app_password=config.ZOHO_APP_PASSWORD,
+                        to_email=emails[0], subject=em["subject"], body=em["body"],
+                        from_email=config.ZOHO_EMAIL, app_password=config.ZOHO_APP_PASSWORD,
                         lead_url=seo.url,
                     )
 
@@ -593,11 +360,9 @@ if "scan_results" in st.session_state:
                         increment_send_count()
                         record_email_sent(seo.url, emails[0], em["subject"], result.get("utm_content", ""))
                         sent_emails.add(emails[0].lower().strip())
-                        # Store contact email for export
                         if "contacts_emails" not in st.session_state:
                             st.session_state["contacts_emails"] = {}
                         st.session_state["contacts_emails"][seo.url] = emails[0]
-                        # Delay between sends to avoid spam filters
                         if i < len(targets) - 1:
                             time.sleep(random.uniform(40, 60))
                     else:
@@ -608,9 +373,8 @@ if "scan_results" in st.session_state:
 
                 log.empty()
                 prog.empty()
-
                 st.session_state["send_summary"] = {
-                    "sent": sent_ok, "no_contact": no_contact, "errors": errors
+                    "sent": sent_ok, "no_contact": no_contact, "errors": errors,
                 }
                 st.rerun()
 
@@ -634,26 +398,30 @@ if "scan_results" in st.session_state:
         if not seo.reachable:
             continue
 
-        lead_status  = _statuses_cache.get(seo.url, "🟡 New")
+        lead_status   = _statuses_cache.get(seo.url, "🟡 New")
         lead_entry    = _lead_data_cache.get(seo.url, {})
         contact_count = lead_entry.get("contact_count", 0)
         contact_badge = f"  📨 ×{contact_count}" if contact_count > 0 else ""
 
         flags = []
-        if not seo.niche_match:        flags.append("⚠️ Off-niche?")
-        if seo.has_seo_agency:         flags.append("🔄 Has SEO agency?")
-        if seo.large_site:             flags.append("📦 Large site")
-        if seo.is_marketplace:         flags.append("🏪 Marketplace?")
+        if not seo.niche_match:    flags.append("⚠️ Off-niche?")
+        if seo.has_seo_agency:     flags.append("🔄 Has SEO agency?")
+        if seo.large_site:         flags.append("📦 Large site")
+        if seo.is_marketplace:     flags.append("🏪 Marketplace?")
         flags_str = "  " + "  ".join(flags) if flags else ""
-        header = f"{lead_status}  {temp}  |  **{seo.url}**  |  Score: {lead_score}  |  Issues: {seo.issues_count}{contact_badge}{flags_str}"
-        with st.expander(header, expanded=(idx < 3)):
+        header = (
+            f"{lead_status}  {temp}  |  **{seo.url}**  |  "
+            f"Score: {lead_score}  |  Issues: {seo.issues_count}{contact_badge}{flags_str}"
+        )
 
-            # Status selector
+        with st.expander(header, expanded=(idx < 3)):
             status_cols = st.columns(len(STATUS_OPTIONS) + 1)
             status_cols[0].markdown("**Status:**")
             for si, opt in enumerate(STATUS_OPTIONS):
-                if status_cols[si + 1].button(opt, key=f"st_{idx}_{si}",
-                                               type="primary" if lead_status == opt else "secondary"):
+                if status_cols[si + 1].button(
+                    opt, key=f"st_{idx}_{si}",
+                    type="primary" if lead_status == opt else "secondary",
+                ):
                     save_status(seo.url, opt)
                     st.rerun()
 
@@ -662,7 +430,7 @@ if "scan_results" in st.session_state:
             if seo.has_seo_agency:
                 st.info("🔄 Likely already working with an SEO agency — but worth reaching out anyway.", icon="💡")
             if seo.large_site:
-                st.warning(f"📦 Large site (300+ pages in sitemap) — may be outside ideal client size.", icon="📦")
+                st.warning("📦 Large site (300+ pages in sitemap) — may be outside ideal client size.", icon="📦")
             if seo.is_marketplace:
                 st.warning("🏪 Marketplace signals detected — verify if this is a good fit.", icon="🏪")
 
@@ -714,14 +482,10 @@ if "scan_results" in st.session_state:
                         st.markdown(f"👤 **Owner:** {contacts['owner']}")
 
                     socials = []
-                    if contacts.get("linkedin"):
-                        socials.append(f"[LinkedIn]({contacts['linkedin']})")
-                    if contacts.get("facebook"):
-                        socials.append(f"[Facebook]({contacts['facebook']})")
-                    if contacts.get("instagram"):
-                        socials.append(f"[Instagram]({contacts['instagram']})")
-                    if contacts.get("twitter"):
-                        socials.append(f"[Twitter/X]({contacts['twitter']})")
+                    if contacts.get("linkedin"):  socials.append(f"[LinkedIn]({contacts['linkedin']})")
+                    if contacts.get("facebook"):  socials.append(f"[Facebook]({contacts['facebook']})")
+                    if contacts.get("instagram"): socials.append(f"[Instagram]({contacts['instagram']})")
+                    if contacts.get("twitter"):   socials.append(f"[Twitter/X]({contacts['twitter']})")
                     if socials:
                         st.markdown("🌐 **Social:** " + " · ".join(socials))
                     elif not contacts["emails"]:
@@ -734,9 +498,7 @@ if "scan_results" in st.session_state:
                         if st.button("✉️ Generate cold email", key=f"btn_email_{idx}"):
                             with st.spinner("Writing personalized email…"):
                                 em = generate_email(
-                                    url=seo.url,
-                                    query=saved_query,
-                                    issues=seo.issues,
+                                    url=seo.url, query=saved_query, issues=seo.issues,
                                     verdict=seo.ai.ai_verdict if seo.ai else "",
                                     owner=contacts.get("owner", ""),
                                     email=contacts["emails"][0] if contacts["emails"] else "",
@@ -755,7 +517,7 @@ if "scan_results" in st.session_state:
             # ── Notes ─────────────────────────────────────────────────────────
             st.divider()
             st.markdown("**📝 Notes**")
-            note_key  = f"note_{idx}"
+            note_key   = f"note_{idx}"
             saved_note = lead_entry.get("note", "")
             if note_key not in st.session_state:
                 st.session_state[note_key] = saved_note
@@ -770,21 +532,6 @@ if "scan_results" in st.session_state:
                 save_note(seo.url, note_val)
                 st.session_state[note_key] = note_val
                 st.success("Saved", icon="✅")
-
-# ── Scan history ─────────────────────────────────────────────────────────────
-history = get_history()
-if history:
-    st.divider()
-    with st.expander(f"📋 Scan history ({len(history)} runs)", expanded=False):
-        for h in history:
-            hot_tag  = f"💥 {h['hot']}" if h['hot']  else ""
-            fire_tag = f"🔥 {h['fire']}" if h['fire'] else ""
-            warm_tag = f"🌤 {h['warm']}" if h['warm'] else ""
-            tags = "  ".join(t for t in [hot_tag, fire_tag, warm_tag] if t)
-            st.markdown(
-                f"`{h['date']}`  **{h['query']}**  ·  {h['geo']}  ·  {h['niche']}  "
-                f"·  {h['total']} sites  ·  {tags}"
-            )
 
 else:
     st.markdown("""
