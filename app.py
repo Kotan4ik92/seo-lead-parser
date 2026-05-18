@@ -19,6 +19,7 @@ from modules.database import (
     get_history, append_history,
     get_sent_emails, save_sent_email,
     get_today_send_count, increment_send_count,
+    record_email_sent, get_email_tracking_stats,
     migrate_from_json,
 )
 
@@ -581,6 +582,7 @@ if "scan_results" in st.session_state:
                         body=em["body"],
                         from_email=config.ZOHO_EMAIL,
                         app_password=config.ZOHO_APP_PASSWORD,
+                        lead_url=seo.url,
                     )
 
                     if result["ok"]:
@@ -589,6 +591,7 @@ if "scan_results" in st.session_state:
                         save_sent_email(emails[0])
                         mark_contacted(seo.url)
                         increment_send_count()
+                        record_email_sent(seo.url, emails[0], em["subject"], result.get("utm_content", ""))
                         sent_emails.add(emails[0].lower().strip())
                         # Store contact email for export
                         if "contacts_emails" not in st.session_state:

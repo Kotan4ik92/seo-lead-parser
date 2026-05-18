@@ -61,6 +61,15 @@ def _init_schema(con: sqlite3.Connection):
             date  TEXT PRIMARY KEY,
             count INTEGER NOT NULL DEFAULT 0
         );
+
+        CREATE TABLE IF NOT EXISTS email_tracking (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            lead_url   TEXT NOT NULL,
+            to_email   TEXT NOT NULL,
+            subject    TEXT NOT NULL,
+            sent_at    TEXT NOT NULL,
+            utm_content TEXT NOT NULL
+        );
     """)
     con.commit()
 
@@ -289,3 +298,24 @@ def migrate_from_json():
             pass
 
     con.commit()
+
+
+# ── Email tracking ────────────────────────────────────────────────────────────
+
+def record_email_sent(lead_url: str, to_email: str, subject: str, utm_content: str):
+    sent_at = datetime.datetime.now().isoformat(timespec="seconds")
+    con = _conn()
+    con.execute(
+        "INSERT INTO email_tracking (lead_url, to_email, subject, sent_at, utm_content) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (lead_url, to_email.lower().strip(), subject, sent_at, utm_content),
+    )
+    con.commit()
+
+
+def get_email_tracking_stats() -> list[dict]:
+    rows = _conn().execute(
+        "SELECT lead_url, to_email, subject, sent_at, utm_content "
+        "FROM email_tracking ORDER BY id DESC LIMIT 500"
+    ).fetchall()
+    return [dict(r) for r in rows]
