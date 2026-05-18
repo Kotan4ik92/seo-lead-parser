@@ -4,118 +4,28 @@ SEO Lead Parser — Streamlit Web App
 Деплой         : Streamlit Community Cloud (github.com → connect repo)
 """
 
-import io
 import json
 import time
 import random
 import datetime
 import requests
-from pathlib import Path
 
 import streamlit as st
 
 import config
+from modules.database import (
+    get_all_statuses, save_status,
+    get_all_lead_data, mark_contacted, save_note, get_followup_due,
+    get_history, append_history,
+    get_sent_emails, save_sent_email,
+    get_today_send_count, increment_send_count,
+    migrate_from_json,
+)
 
-# ── Persistent storage ────────────────────────────────────────────────────────
-DATA_DIR      = Path("data")
-DATA_DIR.mkdir(exist_ok=True)
-STATUSES_FILE    = DATA_DIR / "statuses.json"
-HISTORY_FILE     = DATA_DIR / "history.json"
-SENT_EMAILS_FILE = DATA_DIR / "sent_emails.json"
-SEND_LOG_FILE    = DATA_DIR / "send_log.json"
-LEAD_DATA_FILE   = DATA_DIR / "lead_data.json"
+# ── Migrate legacy JSON data once, then use SQLite ───────────────────────────
+migrate_from_json()
 
 STATUS_OPTIONS = ["🟡 New", "📨 Contacted", "✅ Interested", "❌ Skip"]
-
-def load_statuses() -> dict:
-    try:
-        return json.loads(STATUSES_FILE.read_text(encoding="utf-8")) if STATUSES_FILE.exists() else {}
-    except Exception:
-        return {}
-
-def save_status(url: str, status: str):
-    s = load_statuses()
-    s[url] = status
-    STATUSES_FILE.write_text(json.dumps(s, ensure_ascii=False, indent=2), encoding="utf-8")
-
-def load_history() -> list:
-    try:
-        return json.loads(HISTORY_FILE.read_text(encoding="utf-8")) if HISTORY_FILE.exists() else []
-    except Exception:
-        return []
-
-def load_lead_data() -> dict:
-    try:
-        return json.loads(LEAD_DATA_FILE.read_text(encoding="utf-8")) if LEAD_DATA_FILE.exists() else {}
-    except Exception:
-        return {}
-
-def save_lead_data(data: dict):
-    LEAD_DATA_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-
-def mark_contacted(url: str):
-    data = load_lead_data()
-    entry = data.get(url, {})
-    entry["contacted_at"]    = datetime.date.today().isoformat()
-    entry["contact_count"]   = entry.get("contact_count", 0) + 1
-    data[url] = entry
-    save_lead_data(data)
-
-def save_note(url: str, note: str):
-    data = load_lead_data()
-    data.setdefault(url, {})["note"] = note
-    save_lead_data(data)
-
-def get_followup_due(days: int = 7) -> list[str]:
-    """Returns URLs that have been Contacted for `days`+ days without status change."""
-    data      = load_lead_data()
-    statuses  = load_statuses()
-    today     = datetime.date.today()
-    due = []
-    for url, entry in data.items():
-        if statuses.get(url) == "📨 Contacted" and "contacted_at" in entry:
-            contacted = datetime.date.fromisoformat(entry["contacted_at"])
-            if (today - contacted).days >= days:
-                due.append((url, (today - contacted).days))
-    return due
-
-def get_today_send_count() -> int:
-    today = datetime.date.today().isoformat()
-    try:
-        log = json.loads(SEND_LOG_FILE.read_text(encoding="utf-8")) if SEND_LOG_FILE.exists() else {}
-        return log.get(today, 0)
-    except Exception:
-        return 0
-
-def increment_send_count():
-    today = datetime.date.today().isoformat()
-    try:
-        log = json.loads(SEND_LOG_FILE.read_text(encoding="utf-8")) if SEND_LOG_FILE.exists() else {}
-    except Exception:
-        log = {}
-    log[today] = log.get(today, 0) + 1
-    SEND_LOG_FILE.write_text(json.dumps(log, ensure_ascii=False, indent=2), encoding="utf-8")
-
-def load_sent_emails() -> set:
-    try:
-        data = json.loads(SENT_EMAILS_FILE.read_text(encoding="utf-8")) if SENT_EMAILS_FILE.exists() else []
-        return set(data)
-    except Exception:
-        return set()
-
-def save_sent_email(email: str):
-    sent = load_sent_emails()
-    sent.add(email.lower().strip())
-    SENT_EMAILS_FILE.write_text(json.dumps(sorted(sent), ensure_ascii=False, indent=2), encoding="utf-8")
-
-def append_history(query: str, geo: str, niche: str, total: int, hot: int, fire: int, warm: int):
-    h = load_history()
-    h.insert(0, {
-        "date":  datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "query": query, "geo": geo, "niche": niche,
-        "total": total, "hot": hot, "fire": fire, "warm": warm,
-    })
-    HISTORY_FILE.write_text(json.dumps(h[:100], ensure_ascii=False, indent=2), encoding="utf-8")
 
 # On Streamlit Cloud, secrets are injected via st.secrets
 _GSHEET_SA:   dict | None = None   # service account JSON dict
@@ -385,6 +295,7 @@ with st.sidebar:
     daily_limit = st.slider("Daily send limit", 5, 50, 25, step=5,
                             help="Max emails per day to protect seobro.com reputation")
     today_count = get_today_send_count()
+
     st.caption(f"Sent today: **{today_count} / {daily_limit}**")
 
     st.divider()
@@ -397,7 +308,7 @@ st.markdown("Find websites with poor SEO → turn them into warm leads.")
 # ── Follow-up reminders (always visible) ──────────────────────────────────────
 followup_due = get_followup_due(days=7)
 if followup_due:
-    _all_lead_data = load_lead_data()
+    _all_lead_data = get_all_lead_data()
     with st.expander(f"⏰ Follow-up needed — {len(followup_due)} leads waiting 7+ days", expanded=True):
         st.caption("These leads have been in **📨 Contacted** status for 7+ days — time to send a follow-up.")
         for fu_url, fu_days in sorted(followup_due, key=lambda x: -x[1]):
@@ -533,7 +444,7 @@ if "scan_results" in st.session_state:
     if "scan_excel_filename" in st.session_state:
         filename = st.session_state["scan_excel_filename"]
         _contacts_map = st.session_state.get("contacts_emails", {})
-        _statuses_map = load_statuses()
+        _statuses_map = get_all_statuses()
         write_to_excel(
             st.session_state["scan_results"],
             st.session_state.get("scan_query", ""),
@@ -560,7 +471,7 @@ if "scan_results" in st.session_state:
                         sa_info=_GSHEET_SA,
                         spreadsheet_id=_GSHEET_ID,
                         contacts=st.session_state.get("contacts_emails", {}),
-                        statuses=load_statuses(),
+                        statuses=get_all_statuses(),
                     )
                     st.success(f"✅ Done! [Open Google Sheets]({sheet_url})", icon="📊")
                 except Exception as e:
@@ -589,7 +500,7 @@ if "scan_results" in st.session_state:
 
         # Preview count
         all_res_preview  = st.session_state["scan_results"]
-        statuses_preview = load_statuses()
+        statuses_preview = get_all_statuses()
         preview_targets  = [
             (seo, sc, t) for seo, sc, t in all_res_preview
             if seo.reachable and sc >= 20
@@ -603,11 +514,10 @@ if "scan_results" in st.session_state:
                    f"({len(preview_targets)} match filters, {remaining} quota remaining)")
 
         if remaining > 0 and st.button("📤 Send emails", type="primary", use_container_width=False):
-            all_res   = st.session_state["scan_results"]
-            saved_q   = st.session_state.get("scan_query", "")
-            statuses  = load_statuses()
-
-            sent_emails = load_sent_emails()
+            all_res     = st.session_state["scan_results"]
+            saved_q     = st.session_state.get("scan_query", "")
+            statuses    = get_all_statuses()
+            sent_emails = get_sent_emails()
             targets = [
                 (seo, sc, t) for seo, sc, t in all_res
                 if seo.reachable and sc >= 20
@@ -714,14 +624,14 @@ if "scan_results" in st.session_state:
     st.divider()
     st.subheader(f"Results ({len(filtered)} leads)")
 
-    _lead_data_cache = load_lead_data()
+    _lead_data_cache = get_all_lead_data()
+    _statuses_cache  = get_all_statuses()
 
     for idx, (seo, lead_score, temp) in enumerate(filtered):
         if not seo.reachable:
             continue
 
-        statuses     = load_statuses()
-        lead_status  = statuses.get(seo.url, "🟡 New")
+        lead_status  = _statuses_cache.get(seo.url, "🟡 New")
         lead_entry    = _lead_data_cache.get(seo.url, {})
         contact_count = lead_entry.get("contact_count", 0)
         contact_badge = f"  📨 ×{contact_count}" if contact_count > 0 else ""
@@ -859,7 +769,7 @@ if "scan_results" in st.session_state:
                 st.success("Saved", icon="✅")
 
 # ── Scan history ─────────────────────────────────────────────────────────────
-history = load_history()
+history = get_history()
 if history:
     st.divider()
     with st.expander(f"📋 Scan history ({len(history)} runs)", expanded=False):
