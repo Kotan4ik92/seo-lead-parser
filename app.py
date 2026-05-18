@@ -396,6 +396,21 @@ if "scan_results" in st.session_state:
 
     for idx, (seo, lead_score, temp) in enumerate(filtered):
         if not seo.reachable:
+            with st.expander(f"⛔ Недоступен  |  **{seo.url}**", expanded=False):
+                col_r1, col_r2 = st.columns([3, 1])
+                col_r1.caption("Сайт не ответил во время сканирования.")
+                if col_r2.button("🔄 Повторить", key=f"retry_{idx}"):
+                    with st.spinner(f"Повторное сканирование {seo.url}…"):
+                        retry_session = requests.Session()
+                        retry_session.headers.update({
+                            "User-Agent": random.choice(config.USER_AGENTS),
+                            "Accept-Language": "en-US,en;q=0.9",
+                        })
+                        new_seo = scan(seo.url, retry_session, query=saved_query, niche=niche)
+                        new_score, new_temp = score(new_seo)
+                    all_results[all_results.index((seo, lead_score, temp))] = (new_seo, new_score, new_temp)
+                    st.session_state["scan_results"] = all_results
+                    st.rerun()
             continue
 
         lead_status   = _statuses_cache.get(seo.url, "🟡 New")

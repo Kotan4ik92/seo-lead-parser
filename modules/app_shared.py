@@ -6,7 +6,7 @@ import json
 import datetime
 import streamlit as st
 import config
-from modules.database import get_today_send_count, migrate_from_json
+from modules.database import get_today_send_count, get_api_usage_this_month, migrate_from_json
 
 # ── One-time setup ────────────────────────────────────────────────────────────
 migrate_from_json()
@@ -159,7 +159,12 @@ def render_sidebar(show_lead_filters: bool = True, show_email_settings: bool = T
         openai_ok = "✅" if config.OPENAI_API_KEY else "❌ not set"
         gsheet_ok = "✅" if (GSHEET_SA and GSHEET_ID) else "❌ not set"
         zoho_ok   = "✅" if (config.ZOHO_EMAIL and config.ZOHO_APP_PASSWORD) else "❌ not set"
-        st.caption(f"Serper.dev API: {serper_ok}")
+
+        serper_used  = get_api_usage_this_month("serper")
+        serper_limit = 2500
+        serper_pct   = serper_used / serper_limit
+        serper_color = "🟢" if serper_pct < 0.7 else ("🟡" if serper_pct < 0.9 else "🔴")
+        st.caption(f"Serper.dev: {serper_ok}  {serper_color} {serper_used}/{serper_limit} в месяц")
         st.caption(f"OpenAI API: {openai_ok}")
         st.caption(f"Google Sheets: {gsheet_ok}")
         st.caption(f"Zoho Mail: {zoho_ok}")

@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 import requests
 
 import config
+from modules.database import record_api_call
 
 SERPER_URL = "https://google.serper.dev/search"
 
@@ -121,6 +122,7 @@ def _scrape(query: str, max_results: int, lang_restrict: str) -> list[str]:
 
         try:
             resp = requests.post(SERPER_URL, json=payload, headers=headers, timeout=15)
+            record_api_call("serper")
         except requests.RequestException as e:
             print(f"[SERP] Ошибка сети: {e}")
             break

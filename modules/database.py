@@ -62,6 +62,13 @@ def _init_schema(con: sqlite3.Connection):
             count INTEGER NOT NULL DEFAULT 0
         );
 
+        CREATE TABLE IF NOT EXISTS api_usage (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            service    TEXT NOT NULL,
+            used_at    TEXT NOT NULL,
+            month      TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS email_tracking (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
             lead_url   TEXT NOT NULL,
@@ -319,3 +326,25 @@ def get_email_tracking_stats() -> list[dict]:
         "FROM email_tracking ORDER BY id DESC LIMIT 500"
     ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ── API usage tracking ────────────────────────────────────────────────────────
+
+def record_api_call(service: str):
+    now   = datetime.datetime.now().isoformat(timespec="seconds")
+    month = datetime.date.today().strftime("%Y-%m")
+    con   = _conn()
+    con.execute(
+        "INSERT INTO api_usage (service, used_at, month) VALUES (?, ?, ?)",
+        (service, now, month),
+    )
+    con.commit()
+
+
+def get_api_usage_this_month(service: str) -> int:
+    month = datetime.date.today().strftime("%Y-%m")
+    row = _conn().execute(
+        "SELECT COUNT(*) FROM api_usage WHERE service = ? AND month = ?",
+        (service, month),
+    ).fetchone()
+    return row[0] if row else 0

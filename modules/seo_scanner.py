@@ -64,12 +64,20 @@ class SeoResult:
     is_marketplace: bool = False   # True = признаки маркетплейса
 
 
-def _fetch(url: str, session: requests.Session, timeout: int = None):
+def _fetch(url: str, session: requests.Session, timeout: int = None, retries: int = 2):
     timeout = timeout or config.REQUEST_TIMEOUT
-    try:
-        return session.get(url, timeout=timeout, allow_redirects=True)
-    except Exception:
-        return None
+    for attempt in range(retries + 1):
+        try:
+            if attempt > 0:
+                session.headers.update({"User-Agent": random.choice(config.USER_AGENTS)})
+                time.sleep(attempt * 2 + random.uniform(0.5, 1.5))
+            resp = session.get(url, timeout=timeout, allow_redirects=True)
+            if resp.status_code < 500:
+                return resp
+        except Exception:
+            if attempt == retries:
+                return None
+    return None
 
 
 def _extract_page_data(url: str, html: str) -> dict:
